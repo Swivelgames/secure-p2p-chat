@@ -9,7 +9,8 @@
     "clean": "rm -rf certs/ app/",
     "setup": "mkdir certs && openssl genrsa -out ./certs/rsa.pem 2048 && openssl rsa -in ./certs/rsa.pem -pubout -out certs/rsa.pub",
     "build": "./node_modules/.bin/babel src -d app",
-    "start": "node ./app/main.js"
+    "start": "node ./app/main.js",
+    "start-temp": "node ./app/main.js --temp"
   },
   "author": "Joseph Dalrymple <me@swivel.in>",
   "license": "ISC",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "prompt": "^1.0.0",
-    "ursa": "^0.9.4"
+    "ursa": "^0.9.4",
+    "yargs": "^4.7.1"
   }
 }

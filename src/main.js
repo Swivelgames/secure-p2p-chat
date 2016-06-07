@@ -1,13 +1,19 @@
 import fs from 'fs';
 import ursa from 'ursa';
 import prompt from 'prompt';
+import yargs from 'yargs';
 
-// var cert = ursa.createPublicKey(fs.readFileSync('./certs/rsa.pub'));
-// var key = ursa.createPrivateKey(fs.readFileSync('./certs/rsa.pem'));
+var argv = yargs.argv, key, cert;
 
-var key = ursa.generatePrivateKey();
-var cert = ursa.createPublicKey(key.toPublicPem());
-
+if(argv.t || argv.temp) {
+	console.log("Using a temporary RSA keypair");
+	key = ursa.generatePrivateKey();
+	cert = ursa.createPublicKey(key.toPublicPem());
+} else {
+	console.log("Using RSA keypair in 'certs' folder");
+	cert = ursa.createPublicKey(fs.readFileSync('./certs/rsa.pub'));
+	key = ursa.createPrivateKey(fs.readFileSync('./certs/rsa.pem'));
+}
 
 prompt.message = "<you>";
 prompt.delimiter = "";
