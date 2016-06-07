@@ -5,13 +5,9 @@ var rl;
 
 export default class SecureChat {
 	constructor() {
-		this.conn = new SecureConnect();
-		this.conn.receive( this.handleMessageReceived.bind(this) );
-		this.conn.connected( this.handleConnected.bind(this) );
-
 		this.initReadLine();
 
-		this.requestRemoteInfo();
+		this.requestLocalInfo();
 	}
 
 	initReadLine() {
@@ -19,6 +15,32 @@ export default class SecureChat {
 			input: process.stdin,
 			output: process.stdout
 		});
+	}
+
+	askForUsername() {
+		rl.setPrompt('Identify As: ');
+		rl.once('line', (username) => {
+			this.conn.username = username;
+			this.requestRemoteInfo();
+		});
+		rl.prompt();
+	}
+
+	requestLocalInfo() {
+		rl.setPrompt('Specify a Port: ');
+		rl.once('line', (port) => {
+			let securePort;
+			try {
+				securePort = parseInt(port) || void 0;
+			} catch(e) {}
+
+			this.conn = new SecureConnect(port);
+			this.conn.receive( this.handleMessageReceived.bind(this) );
+			this.conn.connected( this.handleConnected.bind(this) );
+
+			this.askForUsername();
+		});
+		rl.prompt();
 	}
 
 	requestRemoteInfo() {
@@ -59,11 +81,11 @@ export default class SecureChat {
 		this.prompt();
 	}
 
-	handleMessageReceived(msg) {
+	handleMessageReceived(msg, username) {
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
 		rl.pause();
-		console.log(`<remote> ${msg}`);
+		console.log(`<${username}> ${msg}`);
 		rl.resume();
 		let text = "<you> "+this.curInput;
 		process.stdout.clearLine();

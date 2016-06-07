@@ -4,8 +4,8 @@ import yargs from 'yargs';
 import P2PIntent from './P2PIntent.js';
 
 export default class SecureConnect extends P2PIntent {
-	constructor() {
-		super();
+	constructor(port) {
+		super(port);
 
 		var argv = this.argv = yargs.argv, key, cert;
 
@@ -44,7 +44,7 @@ export default class SecureConnect extends P2PIntent {
 	handleMessage(raw, parsed) {
 		if(!parsed) this.showRemoteMessage(raw);
 		if(parsed.hasOwnProperty('message')) {
-			this.showRemoteMessage(parsed.message);
+			this.showRemoteMessage(parsed.message, parsed.username);
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
 			this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
@@ -52,14 +52,14 @@ export default class SecureConnect extends P2PIntent {
 		}
 	}
 
-	showRemoteMessage(msg) {
+	showRemoteMessage(msg, username) {
 		var origMsg;
 		if(this.argv.raw) {
 			origMsg = msg;
 		} else {
 			origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
 		}
-		for(var i=0;i<this.cbs.length;i++) this.cbs[i].call(this, origMsg);
+		for(var i=0;i<this.cbs.length;i++) this.cbs[i].call(this, origMsg, username || "remote");
 	}
 
 	connected(cb) {
@@ -72,6 +72,7 @@ export default class SecureConnect extends P2PIntent {
 
 	send(text) {
 		this.client.send( JSON.stringify({
+			"username": this.username || "remote",
 			"message": this.rsa.remote.cert.encrypt(text, 'utf8', 'base64')
 		}) );
 	}
