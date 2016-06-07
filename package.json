@@ -4,6 +4,9 @@
   "description": "Secure P2P chat",
   "main": "app.js",
   "scripts": {
+    "all": "npm install && npm run setup && npm run build && npm run start",
+    "bnr": "npm run build && npm run start",
+    "clean": "rm -rf certs/ app/",
     "setup": "mkdir certs && openssl genrsa -out ./certs/rsa.pem 2048 && openssl rsa -in ./certs/rsa.pem -pubout -out certs/rsa.pub",
     "build": "./node_modules/.bin/babel src -d app",
     "start": "node ./app/main.js"
