@@ -1,0 +1,17 @@
+{
+  "name": "secure-chat",
+  "version": "1.0.0",
+  "description": "Secure P2P chat",
+  "main": "app.js",
+  "scripts": {
+    "build": "./node_modules/.bin/babel src -d app",
+    "start": "node ./app/main.js"
+  },
+  "author": "Joseph Dalrymple <me@swivel.in>",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-cli": "^6.9.0",
+    "babel-core": "^6.9.1",
+    "babel-preset-es2015": "^6.9.0"
+  }
+}
