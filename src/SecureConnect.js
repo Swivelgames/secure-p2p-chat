@@ -53,7 +53,12 @@ export default class SecureConnect extends P2PIntent {
 	}
 
 	showRemoteMessage(msg) {
-		var origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
+		var origMsg;
+		if(this.argv.raw) {
+			origMsg = msg;
+		} else {
+			origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
+		}
 		for(var i=0;i<this.cbs.length;i++) this.cbs[i].call(this, origMsg);
 	}
 
