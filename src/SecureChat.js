@@ -1,21 +1,41 @@
 import readline from 'readline';
 import SecureConnect from './SecureConnect.js';
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+var rl;
 
 export default class SecureChat {
 	constructor() {
 		this.conn = new SecureConnect();
 		this.conn.receive( this.handleMessageReceived.bind(this) );
+		this.conn.connected( this.handleConnected.bind(this) );
 
-		this.initPrompt();
+		this.initReadLine();
+
+		this.requestRemoteInfo();
+	}
+
+	initReadLine() {
+		rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
 	}
 
 	requestRemoteInfo() {
+		rl.setPrompt('Remote Peer: ');
+		rl.once('line', (remote) => {
+			if(!remote) return;
+			this.conn.expressIntent(remote, this.handleConnected.bind(this));
+		});
+		rl.prompt();
+	}
 
+	handleConnected() {
+		rl.close();
+		this.initReadLine();
+		this.initPrompt();
+		rl.on('line', this.handleMessageSend.bind(this));
+		this.prompt();
 	}
 
 	initPrompt() {
@@ -25,18 +45,18 @@ export default class SecureChat {
 			this.curInput += data.toString('utf8');
 		});
 
-		rl.on('line', (text) => {
-			this.curInput = "";
-			this.conn.send(text);
-			this.prompt();
-		});
-
 		this.prompt();
 	}
 
 	prompt() {
 		rl.setPrompt("<you> ");
 		rl.prompt();
+	}
+
+	handleMessageSend(text) {
+		this.curInput = "";
+		this.conn.send(text);
+		this.prompt();
 	}
 
 	handleMessageReceived(msg) {

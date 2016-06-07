@@ -1,9 +1,12 @@
 import fs from 'fs';
 import ursa from 'ursa';
 import yargs from 'yargs';
+import P2PIntent from './P2PIntent.js';
 
-export default class SecureConnect {
+export default class SecureConnect extends P2PIntent {
 	constructor() {
+		super();
+
 		var argv = this.argv = yargs.argv, key, cert;
 
 		if(argv.t || argv.temp) {
@@ -22,21 +25,40 @@ export default class SecureConnect {
 				"cert": cert
 			},
 			"remote": {
-				"cert": cert
+				"cert": void 0
 			}
 		};
 
-		this.cbs = [];
+		this.handshake = JSON.stringify({
+			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
+		});
 
-		this.listen();
+		this.cbs = [];
+		this.handshakeCbs = [];
 	}
 
-	listen() { console.log("Waiting for remote connection..."); }
-	connect(rmt) { console.log("Connecting to remote: "+rmt); }
+	handleHandshake() {
+		for(var i=0;i<this.handshakeCbs.length;i++) this.handshakeCbs[i].call(this);
+	}
 
-	handleMessage(msg) {
+	handleMessage(raw, parsed) {
+		if(!parsed) this.showRemoteMessage(raw);
+		if(parsed.hasOwnProperty('message')) {
+			this.showRemoteMessage(parsed.message);
+		}
+		if(parsed.hasOwnProperty('publicCert')) {
+			this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
+			this.handleHandshake();
+		}
+	}
+
+	showRemoteMessage(msg) {
 		var origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
 		for(var i=0;i<this.cbs.length;i++) this.cbs[i].call(this, origMsg);
+	}
+
+	connected(cb) {
+		this.handshakeCbs.push(cb);
 	}
 
 	receive(cb) {
@@ -44,6 +66,8 @@ export default class SecureConnect {
 	}
 
 	send(text) {
-		this.handleMessage(this.rsa.remote.cert.encrypt(text, 'utf8', 'base64'));
+		this.client.send( JSON.stringify({
+			"message": this.rsa.remote.cert.encrypt(text, 'utf8', 'base64')
+		}) );
 	}
 }
