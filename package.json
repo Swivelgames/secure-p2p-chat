@@ -19,6 +19,7 @@
     "babel-preset-es2015": "^6.9.0"
   },
   "dependencies": {
+    "prompt": "^1.0.0",
     "ursa": "^0.9.4"
   }
 }
