@@ -80,11 +80,18 @@ class SecureChat {
 		});
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
-			var port = Math.floor(Math.random() * 10000);
+			var opts = {
+				port: Math.floor(Math.random() * 10000)
+			};
 
-			if(parts.length > 1 && !!parts[1]) port = parts[1];
+			if(parts.length > 2) {
+				opts.port = parts[2];
+				opts.host = parts[1];
+			} else if(parts.length > 1) {
+				opts.port = parts[1];
+			}
 
-			var Listener = this.listener = new WebSocket.Server({ port: port });
+			var Listener = this.listener = new WebSocket.Server(opts);
 
 			Listener.on('connection', (remote) => {
 				this.client = remote;
