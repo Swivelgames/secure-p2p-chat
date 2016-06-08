@@ -44,9 +44,15 @@ class SecureChat {
 		Terminal.emit('echo', 'Registering commands...');
 
 		Terminal.registerCommand('su', (parts, raw, Term) => {
-			Term.config.username = this.username = parts[1];
-			Term.redrawPrompt();
-			Term.emit('commandExit');
+			let oldUsername = Term.config.username;
+
+			Terminal.emit('message', `changed their username to ${parts[1]}`, 'me');
+
+			setTimeout( () => {
+				Term.config.username = this.username = parts[1];
+				Term.redrawPrompt();
+				Term.emit('commandExit');
+			}, 100);
 		});
 
 		Terminal.registerCommand('me', (parts, raw, Term) => {
