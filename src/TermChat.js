@@ -162,7 +162,9 @@ export default class TermChat extends EventEmitter {
 	redrawPrompt(newLine, curInput) {
 		if(newLine) console.log(" ");
 
-		let text = this.config.username + this.config.promptDelim + this.curInput;
+		let promptText = this.config.username + this.config.promptDelim;
+		this.readline.setPrompt(promptText)
+		let text = promptText + this.curInput;
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
 		process.stdout.write(text);

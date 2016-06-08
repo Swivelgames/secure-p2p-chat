@@ -45,6 +45,7 @@ class SecureChat {
 
 		Terminal.registerCommand('su', (parts, raw, Term) => {
 			Term.config.username = this.username = parts[1];
+			Term.redrawPrompt();
 			Term.emit('commandExit');
 		});
 
