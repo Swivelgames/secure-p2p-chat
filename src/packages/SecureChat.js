@@ -99,7 +99,7 @@ class SecureChat {
 				this.connectionEstablished();
 			});
 
-			Term.emit('echo', `Listening for connections on port: ${port}`);
+			Term.emit('echo', `Listening for connections on port: ${opts.host}:${opts.port}`);
 
 			Term.emit('commandExit');
 		});
