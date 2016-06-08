@@ -65,7 +65,8 @@ class SecureChat {
 					this.listener.close();
 				}
 
-				this.connectionEstablished();
+				this.initConnection();
+				this.shakeHands();
 			});
 		});
 
@@ -86,7 +87,7 @@ class SecureChat {
 			Listener.on('connection', (remote) => {
 				this.client = remote;
 
-				this.connectionEstablished();
+				this.initConnection();
 			});
 
 			Term.emit('echo', `Listening for connections on port: ${opts.host}:${opts.port}`);
@@ -95,7 +96,7 @@ class SecureChat {
 		});
 	}
 
-	connectionEstablished() {
+	initConnection() {
 		this.client.on('message', (raw) => {
 			if(!raw) return;
 
@@ -110,22 +111,15 @@ class SecureChat {
 		this.client.on('close', () => {
 			Terminal.emit('echo', `SecureChat: ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
 		});
+	}
 
-		Terminal.addListener('message', (msg) => {
-			this.client.send(JSON.stringify({
-				"username": this.username,
-				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64')
-			}));
-		});
-
+	shakeHands() {
 		Terminal.emit('echo', 'Shaking hands...');
 
-		setTimeout( () => (
-			this.client.send(JSON.stringify({
-				"username": this.username,
-				"publicCert": this.rsa.local.cert.toPublicPem('utf8')
-			}))
-		), 100);
+		this.client.send(JSON.stringify({
+			"username": this.username,
+			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
+		}))
 	}
 
 	handleMessage(raw, parsed) {
@@ -135,19 +129,29 @@ class SecureChat {
 			this.showRemoteMessage(parsed.message, parsed.username);
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
-			this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
-			this.rsa.remote.username = parsed.username;
 			this.handleHandshake(parsed);
 		}
 	}
 
 	showRemoteMessage(msg, username) {
 		var origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
-		Terminal.emit('echo', (username || "remote") + Terminal.config.promptDelim + origMsg);
+		Terminal.emit('echo', (this.rsa.remote.username = username || this.rsa.remote.username) + Terminal.config.promptDelim + origMsg);
 	}
 
-	handleHandshake() {
+	handleHandshake(parsed) {
+		this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
+		this.rsa.remote.username = parsed.username;
+
+		if(this.listener) this.shakeHands();
+
 		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected to your session.`);
+
+		Terminal.addListener('message', (msg) => {
+			this.client.send(JSON.stringify({
+				"username": this.username,
+				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64')
+			}));
+		});
 	}
 }
 
