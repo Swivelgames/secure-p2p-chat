@@ -38,13 +38,6 @@ class SecureChat {
 				"username": "remote"
 			}
 		};
-
-		Terminal.emit('echo', 'Setting up handshake');
-
-		this.handshake = JSON.stringify({
-			"username": this.username,
-			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
-		});
 	}
 
 	initCommands() {
@@ -63,8 +56,17 @@ class SecureChat {
 		});
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
+			Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
+
 			var that = this,
 				Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
+
+			Terminal.emit('echo', 'Setting up handshake');
+
+			this.handshake = JSON.stringify({
+				"username": this.username,
+				"publicCert": this.rsa.local.cert.toPublicPem('utf8')
+			});
 
 			Clnt.on('open', () => {
 				if(this.listener && this.listener.close) {
@@ -126,6 +128,7 @@ class SecureChat {
 			this.showRemoteMessage(parsed.message, parsed.username);
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
+			console.log(parsed);
 			this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
 			this.rsa.remote.username = parsed.username;
 			this.handleHandshake(parsed);
@@ -137,7 +140,7 @@ class SecureChat {
 		Terminal.emit('echo', (username || "remote") + Terminal.config.promptDelim + origMsg);
 	}
 
-	handleHandshake(parsed) {
+	handleHandshake() {
 		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected to your session.`);
 	}
 }
