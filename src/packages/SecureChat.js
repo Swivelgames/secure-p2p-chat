@@ -13,6 +13,7 @@ class SecureChat {
 	}
 
 	init() {
+		this.disableDecryption = false;
 		this.cbs = [];
 		this.handshakeCbs = [];
 
@@ -42,6 +43,11 @@ class SecureChat {
 
 	initCommands() {
 		Terminal.emit('echo', 'Registering commands...');
+
+		Terminal.registerCommand('raw', () => {
+			this.disableDecryption = !this.disableDecryption;
+			Terminal.emit('commandExit');
+		});
 
 		Terminal.registerCommand('su', (parts, raw, Term) => {
 			let oldUsername = Term.config.username;
@@ -160,7 +166,8 @@ class SecureChat {
 	}
 
 	showRemoteMessage(msg, username, type) {
-		var origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
+		var origMsg = msg;
+		if(!this.disableDecryption) origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
 
 		switch(type) {
 			case "me":
