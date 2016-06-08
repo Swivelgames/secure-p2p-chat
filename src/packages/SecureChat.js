@@ -51,8 +51,8 @@ class SecureChat {
 
 		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
 			try {
-				if(this.client && this.client.close) this.client.close();
-				if(this.listener && this.listener.close) this.listener.close();
+				this.killClient();
+				this.killListener();
 			} catch(e) {}
 			Terminal.emit('commandExit');
 		});
@@ -63,9 +63,7 @@ class SecureChat {
 			var Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
 
 			Clnt.on('open', () => {
-				if(this.listener && this.listener.close) {
-					this.listener.close();
-				}
+				this.killListener();
 
 				this.initConnection();
 				this.shakeHands();
@@ -73,7 +71,7 @@ class SecureChat {
 		});
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
-			if(this.listener && this.listener.close) this.listener.close();
+			this.killListener();
 
 			var opts = {
 				port: Math.floor(Math.random() * 10000)
@@ -113,7 +111,11 @@ class SecureChat {
 		});
 
 		this.client.on('close', () => {
-			Terminal.emit('echo', `SecureChat: ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
+			if(this.listener) Terminal.emit('echo', '* SecureChat no longer listening...');
+			this.killClient();
+			this.killListener();
+			Terminal.removeAllListeners('message');
+			Terminal.emit('echo', `* ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
 		});
 	}
 
@@ -148,14 +150,24 @@ class SecureChat {
 
 		if(this.listener) this.shakeHands();
 
-		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected to your session.`);
+		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected this session.`);
 
 		Terminal.addListener('message', (msg) => {
+			if(this.client.readyState !== WebSocket.OPEN) return;
+
 			this.client.send(JSON.stringify({
 				"username": this.username,
 				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64')
 			}));
 		});
+	}
+
+	killListener() {
+		if(this.listener && this.listener.close) this.listener.close();
+	}
+
+	killClient() {
+		if(this.client && this.client.close) this.client.close();
 	}
 }
 
