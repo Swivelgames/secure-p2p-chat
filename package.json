@@ -4,13 +4,11 @@
   "description": "Secure P2P chat",
   "main": "app.js",
   "scripts": {
-    "all": "npm install && npm run setup && npm run build && npm run start",
-    "bnr": "npm run build && npm run start",
-    "clean": "rm -rf certs/ app/",
-    "setup": "mkdir certs && openssl genrsa -out ./certs/rsa.pem 2048 && openssl rsa -in ./certs/rsa.pem -pubout -out certs/rsa.pub",
+    "all": "npm install && npm run build && npm run start",
+    "clean": "rm -rf app/ node_modules/",
+    "build-run": "npm run build && npm run start",
     "build": "./node_modules/.bin/babel src -d app",
-    "start": "node ./app/main.js",
-    "start-temp": "node ./app/main.js --temp"
+    "start": "node ./app/main.js"
   },
   "author": "Joseph Dalrymple <me@swivel.in>",
   "license": "ISC",
