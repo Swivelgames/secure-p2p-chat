@@ -1,3 +1,6 @@
+import fs from 'fs';
+import vm from 'vm';
+import http from 'http';
 import path from 'path';
 import util from 'util';
 import readline from 'readline';
@@ -79,12 +82,19 @@ export default class TermChat extends EventEmitter {
 				this.emit('echo', `* ${this.config.username} ${text}`);
 				break;
 			case "import":
+				var importLoc = path.join('../', parts[1]);
+
+				var fileExists = false;
 				try {
-					require( path.join('../', parts[1]) ).default(this);
-				} catch(e) {
-					this.emit('echo', `Error importing ${parts[1]}`);
-					this.emit('echo', e);
+					fileExists = fs.statSync(importLoc).isFile();
+				} catch(e) {}
+
+				if(fileExists) {
+					this.localImport(importLoc);
+				} else {
+					this.remoteImport(parts[1]);
 				}
+				return;
 				break;
 			case "error":
 				if(this.__lastError) {
@@ -96,9 +106,7 @@ export default class TermChat extends EventEmitter {
 					try {
 						this.__handlers[cmd](parts, raw, this);
 					} catch(e) {
-						this.emit('echo', `Error executing command: ${cmd}`);
-						this.emit('echo', `(Type: /error to view stack)`);
-						this.__lastError = e;
+						this.handleError(e);
 					}
 					return;
 				}
@@ -106,6 +114,12 @@ export default class TermChat extends EventEmitter {
 				this.emit('echo', `Unknown command: ${cmd}`);
 		}
 
+		this.emit('commandExit');
+	}
+
+	handleError(e) {
+		this.emit('echo', `Error: (Type: /error to view stack)`);
+		this.__lastError = e;
 		this.emit('commandExit');
 	}
 
@@ -126,5 +140,43 @@ export default class TermChat extends EventEmitter {
 		process.stdout.write(text);
 		process.stdout.cursorTo(text.length);
 		this.readline.resume();
+	}
+
+	localImport(importLoc) {
+		try {
+			require(importLoc).default(this);
+		} catch(e) {
+			this.emit('echo', `Error importing ${parts[1]}`);
+			this.emit('echo', e);
+		}
+		this.emit('commandExit');
+	}
+
+	remoteImport(importLoc) {
+		try {
+			this.emit('echo', `Importing ${importLoc}`);
+			http.get(importLoc, (res) => res.on('data', (data) => {
+				this.emit('echo', `Initializing and Contextualizing...`);
+
+				try {
+					var remoteScript = new vm.Script(data);
+					var context = new vm.createContext(global);
+
+					vm.runInThisContext(
+						remoteScript, context,
+						path.join(
+							__dirname,
+							importLoc.split(/[\/\\]+/).pop()
+						)
+					);
+				} catch(e) {
+					this.handleError(e);
+				}
+
+				this.emit('commandExit');
+			}));
+		} catch(e) {
+			this.handleError(e);
+		}
 	}
 }
