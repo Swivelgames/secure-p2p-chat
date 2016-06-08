@@ -49,6 +49,12 @@ class SecureChat {
 			Term.emit('commandExit');
 		});
 
+		Terminal.registerCommand('me', (parts, raw, Term) => {
+			let text = parts.slice(1).join(" ");
+			Terminal.emit('echo', `* ${this.username} ${text}`);
+			Terminal.emit('message', text, 'me');
+		})
+
 		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
 			try {
 				this.killClient();
@@ -132,16 +138,32 @@ class SecureChat {
 		if(!parsed) this.showRemoteMessage(raw);
 
 		if(parsed.hasOwnProperty('message')) {
-			this.showRemoteMessage(parsed.message, parsed.username);
+			this.showRemoteMessage(parsed.message, parsed.username, parsed.type || "text");
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
 			this.handleHandshake(parsed);
 		}
 	}
 
-	showRemoteMessage(msg, username) {
+	showRemoteMessage(msg, username, type) {
 		var origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
-		Terminal.emit('echo', (this.rsa.remote.username = username || this.rsa.remote.username) + Terminal.config.promptDelim + origMsg);
+
+		switch(type) {
+			case "me":
+				Terminal.emit('echo',
+					'* ' +
+					(this.rsa.remote.username = username || this.rsa.remote.username) +
+					' ' + origMsg
+				);
+				break;
+			case "text":
+			default:
+				Terminal.emit('echo',
+					(this.rsa.remote.username = username || this.rsa.remote.username) +
+					Terminal.config.promptDelim +
+					origMsg
+				);
+		}
 	}
 
 	handleHandshake(parsed) {
@@ -152,12 +174,13 @@ class SecureChat {
 
 		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected this session.`);
 
-		Terminal.addListener('message', (msg) => {
-			if(this.client.readyState !== WebSocket.OPEN) return;
+		Terminal.addListener('message', (msg, type) => {
+			if(!msg || this.client.readyState !== WebSocket.OPEN) return;
 
 			this.client.send(JSON.stringify({
 				"username": this.username,
-				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64')
+				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64'),
+				"type": type || "text"
 			}));
 		});
 	}

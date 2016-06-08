@@ -103,10 +103,6 @@ export default class TermChat extends EventEmitter {
 			case "motd":
 				this.emit('echo', this.config.motd);
 				break;
-			case "me":
-				let text = parts.slice(1).join(" ");
-				this.emit('echo', `* ${this.config.username} ${text}`);
-				break;
 			case "import":
 				var importLoc = path.join(__dirname, '../', parts[1]);
 
