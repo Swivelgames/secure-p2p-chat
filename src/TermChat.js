@@ -7,7 +7,6 @@ import http from 'http';
 import https from 'https';
 import readline from 'readline';
 import EventEmitter from 'events';
-import SecureConnect from './SecureConnect.js';
 
 export default class TermChat extends EventEmitter {
 	constructor() {
