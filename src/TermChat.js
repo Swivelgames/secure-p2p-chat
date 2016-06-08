@@ -49,17 +49,24 @@ export default class TermChat extends EventEmitter {
 			this.curInput += data.toString('utf8');
 		});
 
-		this.readline.setPrompt(this.config.username+this.config.promptDelim);
 		this.readline.on('line', (msg) => {
 			if( msg.split(/\s+/)[0].substr(0,1) === "/" ) {
 				this.curInput = "";
 				this.emit('command', msg.split(/\s+/), msg);
 				this.once('commandExit', () => {
-					this.readline.prompt(true);
-					//this.redrawPrompt(true);
+					this.prompt();
 				});
-			} else this.readline.prompt(true);
+			} else {
+				this.emit('message', msg);
+				this.prompt();
+			}
 		});
+		this.prompt();
+	}
+
+	prompt() {
+		this.curInput = "";
+		this.readline.setPrompt(this.config.username+this.config.promptDelim);
 		this.readline.prompt(true);
 	}
 
@@ -84,7 +91,7 @@ export default class TermChat extends EventEmitter {
 				this.emit('echo', `* ${this.config.username} ${text}`);
 				break;
 			case "import":
-				var importLoc = path.join('../', parts[1]);
+				var importLoc = path.join(__dirname, '../', parts[1]);
 
 				var fileExists = false;
 				try {
@@ -148,12 +155,12 @@ export default class TermChat extends EventEmitter {
 
 	localImport(importLoc) {
 		try {
-			require(importLoc).default(this);
+			require(importLoc);
 		} catch(e) {
-			this.emit('echo', `Error importing ${parts[1]}`);
-			this.emit('echo', e);
+			this.handleError(e);
+		} finally {
+			Terminal.emit('commandExit');
 		}
-		this.emit('commandExit');
 	}
 
 	remoteImport(importLoc) {
