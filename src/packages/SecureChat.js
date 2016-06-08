@@ -55,6 +55,13 @@ class SecureChat {
 			Term.emit('commandExit');
 		});
 
+		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
+			try {
+				if(this.client && this.client.close) this.client.close();
+			} catch(e) {}
+			Terminal.emit('commandExit');
+		});
+
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			var that = this,
 				Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');

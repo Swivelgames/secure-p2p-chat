@@ -81,6 +81,13 @@ export default class TermChat extends EventEmitter {
 	}
 
 	registerCommand(cmd, handler, silently) {
+		if(cmd.length && typeof cmd === "object") {
+			for(var i=0;i<cmd.length;i++) {
+				this.registerCommand(cmd[i], handler, true);
+			}
+			this.emit('echo', `Command Registered: ${cmd}`);
+			return;
+		}
 		this.__handlers[cmd] = handler;
 		if(silently!==true) this.emit('echo', `Command Registered: ${cmd}`);
 	}
