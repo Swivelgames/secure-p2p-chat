@@ -1,8 +1,10 @@
+import os from 'os';
 import fs from 'fs';
 import vm from 'vm';
-import http from 'http';
 import path from 'path';
 import util from 'util';
+import http from 'http';
+import https from 'https';
 import readline from 'readline';
 import EventEmitter from 'events';
 import SecureConnect from './SecureConnect.js';
@@ -98,7 +100,9 @@ export default class TermChat extends EventEmitter {
 				break;
 			case "error":
 				if(this.__lastError) {
-					this.emit('echo', util.inspect(this.__lastError, null, false));
+					this.emit('echo', this.__lastError);
+					this.emit('echo', this.__lastError.message);
+					this.emit('echo', this.__lastError.stack);
 				}
 				break;
 			default:
@@ -153,28 +157,44 @@ export default class TermChat extends EventEmitter {
 	}
 
 	remoteImport(importLoc) {
+		var getter;
+		if(importLoc.indexOf('https:') > -1) {
+			getter = https;
+		} else {
+			getter = http;
+		}
+
 		try {
 			this.emit('echo', `Importing ${importLoc}`);
-			http.get(importLoc, (res) => res.on('data', (data) => {
-				this.emit('echo', `Initializing and Contextualizing...`);
+			getter.get(importLoc, (res) => {
+				var progress = '/';
+				var data = '';
 
-				try {
-					var remoteScript = new vm.Script(data);
-					var context = new vm.createContext(global);
+				res.setEncoding('utf8');
 
-					vm.runInThisContext(
-						remoteScript, context,
-						path.join(
-							__dirname,
-							importLoc.split(/[\/\\]+/).pop()
-						)
-					);
-				} catch(e) {
-					this.handleError(e);
-				}
+				res.on('data', (chunk) => {
+					data+=chunk;
+					process.stdout.cursorTo(0);
+					process.stdout.clearLine();
+					process.stdout.write("Importing [" + (progress=(
+						progress === "/" ? "|" :
+						progress === "|" ? "\\" :
+						progress === "\\" ? "-" : "/"
+					)) + "]");
+				});
 
-				this.emit('commandExit');
-			}));
+				res.on('end', () => {
+					this.emit('echo', `Initializing and Contextualizing...`);
+
+					try {
+						eval(data);
+					} catch(e) {
+						this.handleError(e);
+					}
+
+					this.emit('commandExit');
+				});
+			});
 		} catch(e) {
 			this.handleError(e);
 		}
