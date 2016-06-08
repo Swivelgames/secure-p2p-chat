@@ -1,3 +1,6 @@
-import SecureChat from './SecureChat.js';
+import TermChat from './TermChat.js';
 
-new SecureChat();
+const Terminal = new TermChat();
+
+Terminal.setConfig();
+Terminal.init();
