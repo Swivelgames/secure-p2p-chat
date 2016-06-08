@@ -51,6 +51,7 @@ class SecureChat {
 		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
 			try {
 				if(this.client && this.client.close) this.client.close();
+				if(this.listener && this.listener.close) this.listener.close();
 			} catch(e) {}
 			Terminal.emit('commandExit');
 		});
@@ -71,6 +72,8 @@ class SecureChat {
 		});
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
+			if(this.listener && this.listener.close) this.listener.close();
+
 			var opts = {
 				port: Math.floor(Math.random() * 10000)
 			};
