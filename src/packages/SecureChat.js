@@ -70,41 +70,49 @@ class SecureChat {
 		});
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
-			Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
+			try {
+				Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
 
-			var Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
+				var Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
 
-			Clnt.on('open', () => {
-				this.killListener();
+				Clnt.on('open', () => {
+					this.killListener();
 
-				this.initConnection();
-				this.shakeHands();
-			});
+					this.initConnection();
+					this.shakeHands();
+				});
+			} catch(e) {
+				Terminal.handleError(e);
+			}
 		});
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
-			this.killListener();
+			try {
+				this.killListener();
 
-			var opts = {
-				port: Math.floor(Math.random() * 10000)
-			};
+				var opts = {
+					port: Math.floor(Math.random() * 10000)
+				};
 
-			if(parts.length > 2) {
-				opts.port = parts[2];
-				opts.host = parts[1];
-			} else if(parts.length > 1) {
-				opts.port = parts[1];
+				if(parts.length > 2) {
+					opts.port = parts[2];
+					opts.host = parts[1];
+				} else if(parts.length > 1) {
+					opts.port = parts[1];
+				}
+
+				var Listener = this.listener = new WebSocket.Server(opts);
+
+				Listener.on('connection', (remote) => {
+					this.client = remote;
+
+					this.initConnection();
+				});
+
+				Term.emit('echo', `Listening for connections on port: ${opts.host||'localhost'}:${opts.port}`);
+			} catch(e) {
+				Terminal.handleError(e);
 			}
-
-			var Listener = this.listener = new WebSocket.Server(opts);
-
-			Listener.on('connection', (remote) => {
-				this.client = remote;
-
-				this.initConnection();
-			});
-
-			Term.emit('echo', `Listening for connections on port: ${opts.host||'localhost'}:${opts.port}`);
 
 			Term.emit('commandExit');
 		});
