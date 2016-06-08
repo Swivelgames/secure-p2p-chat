@@ -58,15 +58,7 @@ class SecureChat {
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
 
-			var that = this,
-				Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
-
-			Terminal.emit('echo', 'Setting up handshake');
-
-			this.handshake = JSON.stringify({
-				"username": this.username,
-				"publicCert": this.rsa.local.cert.toPublicPem('utf8')
-			});
+			var Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
 
 			Clnt.on('open', () => {
 				if(this.listener && this.listener.close) {
@@ -75,8 +67,6 @@ class SecureChat {
 
 				this.connectionEstablished();
 			});
-
-			Term.emit('commandExit');
 		});
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
@@ -107,7 +97,9 @@ class SecureChat {
 
 	connectionEstablished() {
 		this.client.on('message', (raw) => {
-			let parsed;
+			if(!raw) return;
+
+			var parsed;
 			try {
 				parsed = JSON.parse(raw);
 			} catch(e) {}
@@ -126,16 +118,23 @@ class SecureChat {
 			}));
 		});
 
-		this.client.send(this.handshake);
+		Terminal.emit('echo', 'Shaking hands...');
+
+		setTimeout( () => (
+			this.client.send(JSON.stringify({
+				"username": this.username,
+				"publicCert": this.rsa.local.cert.toPublicPem('utf8')
+			}))
+		), 100);
 	}
 
 	handleMessage(raw, parsed) {
 		if(!parsed) this.showRemoteMessage(raw);
+
 		if(parsed.hasOwnProperty('message')) {
 			this.showRemoteMessage(parsed.message, parsed.username);
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
-			console.log(parsed);
 			this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
 			this.rsa.remote.username = parsed.username;
 			this.handleHandshake(parsed);
