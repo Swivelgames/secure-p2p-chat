@@ -86,7 +86,7 @@ class SecureChat {
 			Term.emit('echo', `Listening for connections on port: ${port}`);
 
 			Term.emit('commandExit');
-		})
+		});
 	}
 
 	connectionEstablished() {

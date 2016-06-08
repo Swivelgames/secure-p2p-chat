@@ -25,6 +25,8 @@ export default class TermChat extends EventEmitter {
 	init() {
 		this.__handlers = {};
 
+		this.initPackages();
+
 		this.initPrompt();
 
 		this.addListener('echo', this.echo.bind(this) );
@@ -35,6 +37,15 @@ export default class TermChat extends EventEmitter {
 
 	initMotd() {
 		this.emit('echo', this.config.motd);
+	}
+
+	initPackages() {
+		fs.readdir( path.join(__dirname, './packages/'), (err, files) => {
+			if(err) return;
+			files.forEach( (v) => {
+				this.localImport( path.join(__dirname, './packages/', v) );
+			});
+		})
 	}
 
 	initPrompt() {
