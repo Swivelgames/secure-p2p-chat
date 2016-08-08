@@ -17,11 +17,14 @@ export default class TermChat extends EventEmitter {
 		this.config = Object.assign({
 			"promptDelim": "$ ",
 			"username": process.env['USER'],
-			"motd": "Welcome to Terminal Chat"
+			"motd": "Welcome to Terminal Chat",
+			"verbose": false
 		}, config);
 	}
 
 	init() {
+		if(this.config.verbose) this.initVerbose();
+
 		this.__handlers = {};
 
 		this.initPackages();
@@ -32,6 +35,13 @@ export default class TermChat extends EventEmitter {
 		this.addListener('command', this.handleCommand.bind(this) );
 
 		this.initMotd();
+	}
+
+	initVerbose() {
+		this.emit = (function() {
+			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
+			return EventEmitter.prototype.emit.apply(this,arguments);
+		}).bind(this);
 	}
 
 	initMotd() {
@@ -147,7 +157,9 @@ export default class TermChat extends EventEmitter {
 		this.emit('commandExit');
 	}
 
-	echo(msg) {
+	echo(msg, forceEcho) {
+		if(this.config.verbose && !forceEcho) return;
+
 		this.readline.pause();
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
