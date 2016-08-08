@@ -14,8 +14,6 @@ class SecureChat {
 
 	init() {
 		this.disableDecryption = false;
-		this.cbs = [];
-		this.handshakeCbs = [];
 
 		this.username = Terminal.config.username || "remote";
 
@@ -109,13 +107,21 @@ class SecureChat {
 
 				var Listener = this.listener = new WebSocket.Server(opts);
 
+				Term.emit('echo', `Listening for connections on port: ${opts.host||'localhost'}:${opts.port}`);
+
+				Listener.on('error', (err) => {
+					Term.emit('echo', `Unable to listen for connections on port: ${opts.host||'localhost'}:${opts.port}`);
+					Term.emit('echo', `Common Problem: Make sure the port is not already in use by another instance or application.`);
+					Terminal.handleError(err);
+					this.killListener();
+					this.killClient();
+				});
+
 				Listener.on('connection', (remote) => {
 					this.client = remote;
 
 					this.initConnection();
 				});
-
-				Term.emit('echo', `Listening for connections on port: ${opts.host||'localhost'}:${opts.port}`);
 			} catch(e) {
 				Terminal.handleError(e);
 			}
