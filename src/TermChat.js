@@ -17,11 +17,14 @@ export default class TermChat extends EventEmitter {
 		this.config = Object.assign({
 			"promptDelim": "$ ",
 			"username": process.env['USER'],
-			"motd": "Welcome to Terminal Chat"
+			"motd": "Welcome to Terminal Chat",
+			"verbose": false
 		}, config);
 	}
 
 	init() {
+		this.initVerbose();
+
 		this.__handlers = {};
 
 		this.initPackages();
@@ -32,6 +35,18 @@ export default class TermChat extends EventEmitter {
 		this.addListener('command', this.handleCommand.bind(this) );
 
 		this.initMotd();
+	}
+
+	initVerbose() {
+		if(!this.config.verbose) {
+			this.emit = EventEmitter.prototype.emit.bind(this);
+			return;
+		}
+
+		this.emit = (function() {
+			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
+			return EventEmitter.prototype.emit.apply(this,arguments);
+		}).bind(this);
 	}
 
 	initMotd() {
@@ -95,6 +110,12 @@ export default class TermChat extends EventEmitter {
 	handleCommand(parts, raw) {
 		let cmd = parts[0].substr(1);
 		switch(cmd) {
+			case "verbose":
+				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
+				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
+				this.config.verbose = !this.config.verbose;
+				this.initVerbose();
+				break;
 			case "exit":
 				console.log("Goodbye");
 				console.log(" ");
@@ -147,7 +168,9 @@ export default class TermChat extends EventEmitter {
 		this.emit('commandExit');
 	}
 
-	echo(msg) {
+	echo(msg, forceEcho) {
+		if(this.config.verbose && !forceEcho) return;
+
 		this.readline.pause();
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
