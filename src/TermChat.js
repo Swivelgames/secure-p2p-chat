@@ -23,7 +23,7 @@ export default class TermChat extends EventEmitter {
 	}
 
 	init() {
-		if(this.config.verbose) this.initVerbose();
+		this.initVerbose();
 
 		this.__handlers = {};
 
@@ -38,6 +38,11 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initVerbose() {
+		if(!this.config.verbose) {
+			this.emit = EventEmitter.prototype.emit.bind(this);
+			return;
+		}
+
 		this.emit = (function() {
 			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
 			return EventEmitter.prototype.emit.apply(this,arguments);
@@ -105,6 +110,12 @@ export default class TermChat extends EventEmitter {
 	handleCommand(parts, raw) {
 		let cmd = parts[0].substr(1);
 		switch(cmd) {
+			case "verbose":
+				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
+				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
+				this.config.verbose = !this.config.verbose;
+				this.initVerbose();
+				break;
 			case "exit":
 				console.log("Goodbye");
 				console.log(" ");
