@@ -85,6 +85,13 @@ class SecureChat {
 					this.initConnection();
 					this.shakeHands();
 				});
+
+				Clnt.on('error', (err) => {
+					Term.emit('echo', `Unable to connect to socket: ${parts[1]}`);
+					Terminal.handleError(err);
+					this.killListener();
+					this.killClient();
+				});
 			} catch(e) {
 				Terminal.handleError(e);
 			}
