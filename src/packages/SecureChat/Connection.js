@@ -1,3 +1,4 @@
+import util from 'util';
 import url from 'url';
 import fs from 'fs';
 import ursa from 'ursa';
@@ -10,6 +11,8 @@ const GroupSeparator = "\u001d";
 export default (Terminal,SecureChat) => class Connection {
 	constructor(client, rsa) {
 		this.client = client;
+
+		this.debug = false;
 
 		this.rsa = {
 			"local": rsa.local,
@@ -36,6 +39,7 @@ export default (Terminal,SecureChat) => class Connection {
 			let [type,contents] = raw.split(GroupSeparator);
 
 			if(type==="SHAKE") {
+				if(this.debug) Terminal.emit('echo', `[SHAKE] => ${contents}`);
 				return this.handleShake(type, contents);
 			}
 
@@ -46,6 +50,10 @@ export default (Terminal,SecureChat) => class Connection {
 				this.terminate();
 				return;
 			}
+
+			msg.type = type;
+
+			if(this.debug) Terminal.emit('echo', `[${type}] => ${util.inspect(msg, false, 0)}`);
 
 			if(type==="HELO") {
 				return this.handleHelo(type, msg);

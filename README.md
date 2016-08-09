@@ -22,6 +22,8 @@ This is another one of my random projects that I threw together in a random morn
 
 `/me MESSAGE` -- Talk in third-person perspective (i.e., `Swivel is incredibly tired.`)
 
+`/debug` -- Enables debug output for incoming messages
+
 #### Other Commands
 
 `/import PATH` -- Path (local or remote) to a JavaScript file to be EVAL'd locally

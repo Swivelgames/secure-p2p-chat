@@ -21,8 +21,6 @@ class SecureChat {
 		this.connections = [];
 		this.handlers = {};
 
-		this.disableDecryption = false;
-
 		this.username = Terminal.config.username || "remote";
 
 		this.initRSA();
@@ -59,8 +57,8 @@ class SecureChat {
 	initCommands() {
 		Terminal.emit('echo', 'Registering commands...');
 
-		Terminal.registerCommand('raw', () => {
-			this.disableDecryption = !this.disableDecryption;
+		Terminal.registerCommand('debug', () => {
+			this.connections.forEach( (v) => v.debug = !v.debug );
 			Terminal.emit('commandExit');
 		});
 
@@ -84,7 +82,7 @@ class SecureChat {
 
 		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
 			try {
-				this.killClient();
+				this.connections.forEach( (v) => v.close() );
 				this.killListener();
 			} catch(e) {}
 			Terminal.emit('commandExit');
@@ -156,28 +154,6 @@ class SecureChat {
 		let type = contents.type;
 
 		this.handlers[type](contents);
-	}
-
-	showRemoteMessage(msg, username, type) {
-		var origMsg = msg;
-		if(!this.disableDecryption) origMsg = this.rsa.local.key.decrypt(msg, 'base64', 'utf8');
-
-		switch(type) {
-			case "me":
-				Terminal.emit('echo',
-					'* ' +
-					(this.rsa.remote.username = username || this.rsa.remote.username) +
-					' ' + origMsg
-				);
-				break;
-			case "text":
-			default:
-				Terminal.emit('echo',
-					(this.rsa.remote.username = username || this.rsa.remote.username) +
-					Terminal.config.promptDelim +
-					origMsg
-				);
-		}
 	}
 
 	killListener() {
