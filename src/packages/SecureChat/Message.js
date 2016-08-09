@@ -8,12 +8,9 @@ export default class Message {
 
 		if(!conn) this.conn = obj;
 		else {
+			this.conn = conn;
 			Object.assign(this, obj);
 		}
-	}
-
-	encrypt() {
-		return this.conn.remote.cert.encrypt(this.toString(), 'utf8', 'base64');
 	}
 
 	decrypt(message) {
@@ -22,13 +19,13 @@ export default class Message {
 		var parsed;
 		try {
 			parsed = JSON.parse(
-				this.conn.local.key.decrypt(
+				this.conn.rsa.local.key.decrypt(
 					message, 'base64', 'utf8'
 				)
 			);
 		} catch(e) {
-			return;
-		};
+			return e;
+		}
 
 		Object.assign(this, parsed);
 	}
@@ -36,14 +33,14 @@ export default class Message {
 	toString() {
 		var ret = {};
 		Object.keys(this).filter(
-			v => !!this[v] || !(v==="type") || !(v==="conn")
+			v => ["type","conn","raw"].indexOf(v) > -1 ? false : !!this[v]
 		).forEach(
 			v => ret[v] = this[v]
 		);
 
 		ret = JSON.stringify(ret);
-		if(this.type!=="SHAKE" || this.type!=="HELO") {
-			ret = this.conn.remote.cert.encrypt(ret, 'utf8', 'base64');
+		if(this.type!=="SHAKE") {
+			ret = this.conn.rsa.remote.cert.encrypt(ret, 'utf8', 'base64');
 		}
 
 		return [this.type.toUpperCase(), ret].join(GroupSeparator);

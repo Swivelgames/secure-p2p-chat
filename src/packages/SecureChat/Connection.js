@@ -1,14 +1,13 @@
+import url from 'url';
 import fs from 'fs';
 import ursa from 'ursa';
 import yargs from 'yargs';
 import WebSocket from 'ws';
+import Message from './Message.js';
 
 const GroupSeparator = "\u001d";
 
-const Terminal = global.Terminal;
-const SecureChat = global.SecureChatInstance;
-
-export default class Connection {
+export default (Terminal,SecureChat) => class Connection {
 	constructor(client, rsa) {
 		this.client = client;
 
@@ -29,21 +28,30 @@ export default class Connection {
 	}
 
 	init() {
-		Terminal.emit('echo', `Establishing new connection with ${client.upgradeReq.connection.remoteAddress}`);
+		Terminal.emit('echo', `Establishing new connection with ${this.client.REMOTE_ADDRESS}`);
 
 		this.client.on('message', (raw) => {
-			let {type,contents} = raw.split("\u001D");
+			if(!raw) return;
 
-			switch(type) {
-				case "SHAKE":
-					this.handleShake(type,contents);
-					break;
-				case "HELO":
-					this.handleHelo(type,contents);
-					break;
-				default:
-					this.handleMessage(type,contents);
+			let [type,contents] = raw.split(GroupSeparator);
+
+			if(type==="SHAKE") {
+				return this.handleShake(type, contents);
 			}
+
+			let msg = new Message(this);
+			let error = msg.decrypt(contents);
+			if(error) {
+				Terminal.emit('echo', `Terminating Connection (received malformed socket message)`);
+				this.terminate();
+				return;
+			}
+
+			if(type==="HELO") {
+				return this.handleHelo(type, msg);
+			}
+
+			return this.handleMessage(type, msg);
 		});
 
 		this.client.on('close', () => {
@@ -61,34 +69,34 @@ export default class Connection {
 		Terminal.addListener('message', (msg, type) => {
 			if(!msg || this.client.readyState !== WebSocket.OPEN) return;
 
-			let msg = new Message({
+			var msg = new Message({
 				"type": type || "text",
-				"username": Terminal.username,
+				"username": SecureChat.username,
 				"message": msg
-			}, this.rsa);
+			}, this);
 
-			this.client.send(msg);
+			this.client.send(msg.toString());
 		});
 	}
 
 	handleShake(type,contents) {
 		Terminal.emit('echo', 'Received SHAKE...');
 
-		if(this.flags.SHAKE===3) {
-			this.sendHelo();
-		}
-
 		if(this.flags.SHAKE===2) return;
 
 		try {
-			this.rsa.remote.cert = (JSON.parse(contents)).publicCert;
+			this.rsa.remote.cert = ursa.createPublicKey(
+				(JSON.parse(contents)).publicCert
+			);
 		} catch(e) {
 			Terminal.emit('echo', `Terminating Connection (Malformed handshake: SHAKE)`);
 			return this.terminate();
 		}
 		this.flags.SHAKE+=2;
 
-		if(this.flags.SHAKE===2) {
+		if(this.flags.SHAKE===3) {
+			this.sendHelo();
+		} else if(this.flags.SHAKE===2) {
 			this.sendShake();
 		}
 	}
@@ -99,14 +107,14 @@ export default class Connection {
 		let msg = new Message({
 			"type": "SHAKE",
 			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
-		}, this.rsa);
+		}, this);
 
-		this.client.send(msg);
+		this.client.send(msg.toString());
 
 		this.flags.SHAKE++;
 	}
 
-	handleHelo(type,contents) {
+	handleHelo(type,msg) {
 		Terminal.emit('echo', 'Receiving HELO...');
 
 		if(this.flags.SHAKE!==3) {
@@ -117,16 +125,13 @@ export default class Connection {
 		if(this.flags.HELO===3
 		|| this.flags.HELO===2) return;
 
-		try {
-			this.rsa.remote.username = (JSON.parse(contents)).username;
-		} catch(e) {
-			Terminal.emit('echo', `Terminating Connection (Malformed handshake: HELO)`);
-			return this.terminate();
-		}
+		this.rsa.remote.username = msg.username;
 		this.flags.HELO+=2;
 
 		if(this.flags.HELO===2) {
 			this.sendHelo();
+		} else if(this.flags.HELO===3) {
+			this.ready();
 		}
 	}
 
@@ -135,10 +140,10 @@ export default class Connection {
 
 		let msg = new Message({
 			"type": "HELO",
-			"username": Terminal.username
-		}, this.rsa);
+			"username": SecureChat.username
+		}, this);
 
-		this.client.send(msg);
+		this.client.send(msg.toString());
 
 		this.flags.HELO++;
 

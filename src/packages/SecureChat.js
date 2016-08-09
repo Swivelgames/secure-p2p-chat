@@ -1,25 +1,32 @@
 import fs from 'fs';
 import ursa from 'ursa';
+import path from 'path';
 import yargs from 'yargs';
 import WebSocket from 'ws';
+import ConnectionClass from './Securechat/Connection.js';
 
+var Connection
 const Terminal = global.Terminal;
 
 class SecureChat {
 	constructor() {
 		Terminal.emit('echo', 'Setting up SecureChat Package');
 
+		Connection = ConnectionClass(Terminal,this);
+
 		this.init();
 	}
 
 	init() {
 		this.connections = [];
+		this.handlers = {};
 
 		this.disableDecryption = false;
 
 		this.username = Terminal.config.username || "remote";
 
 		this.initRSA();
+		this.initHandlers();
 		this.initCommands();
 	}
 
@@ -35,6 +42,18 @@ class SecureChat {
 				"cert": cert
 			}
 		};
+	}
+
+	initHandlers() {
+		var dir = './SecureChat/handlers/';
+		fs.readdir( path.join(__dirname, dir), (err, files) => {
+			if(err) return;
+			files.forEach( (v) => {
+				var type = v.split('.')[0].toUpperCase();
+				var handler = require(path.join(__dirname, dir, v)).default;
+				this.handlers[type] = handler(Terminal, this);
+			});
+		})
 	}
 
 	initCommands() {
@@ -75,19 +94,21 @@ class SecureChat {
 			try {
 				Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
 
-				(function(client){
+				(function(client, host){
 					client.on('open', () => {
 						this.killListener();
-						this.connections.push(let Conn = new Connection(client));
+						client.REMOTE_ADDRESS = host;
+						let Conn = new Connection(client, this.rsa)
+						this.connections.push(Conn);
 						Conn.sendShake();
 					});
 
 					client.on('error', (err) => {
-						Term.emit('echo', `Unable to connect to socket: ${parts[1]}`);
+						Term.emit('echo', `Unable to connect to socket: ${host}`);
 						Terminal.handleError(err);
 						this.killListener();
 					});
-				})(new WebSocket('ws://'+parts[1]+'/'));
+				}).call(this, new WebSocket('ws://'+parts[1]+'/'), parts[1]);
 			} catch(e) {
 				Terminal.handleError(e);
 			}
@@ -120,7 +141,8 @@ class SecureChat {
 				});
 
 				Listener.on('connection', (remote) => {
-					this.connections.push(new Connection(remote));
+					remote.REMOTE_ADDRESS = remote.upgradeReq.connection.remoteAddress;
+					this.connections.push(new Connection(remote, this.rsa));
 				});
 			} catch(e) {
 				Terminal.handleError(e);
@@ -131,20 +153,9 @@ class SecureChat {
 	}
 
 	handleMessage(contents) {
-		Terminal.emit('echo',
-			(this.rsa.remote.username = contents.username || this.rsa.remote.username) +
-			Terminal.config.promptDelim +
-			origMsg
-		);
+		let type = contents.type;
 
-/*		if(!parsed) this.showRemoteMessage(raw);
-
-		if(parsed.hasOwnProperty('message')) {
-			this.showRemoteMessage(parsed.message, parsed.username, parsed.type || "text");
-		}
-		if(parsed.hasOwnProperty('publicCert')) {
-			this.handleHandshake(parsed);
-		}*/
+		this.handlers[type](contents);
 	}
 
 	showRemoteMessage(msg, username, type) {
