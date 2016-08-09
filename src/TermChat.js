@@ -9,8 +9,12 @@ import readline from 'readline';
 import EventEmitter from 'events';
 
 export default class TermChat extends EventEmitter {
-	constructor() {
+	constructor(config) {
 		super();
+		if(config) {
+			this.setConfig(config);
+			this.init();
+		}
 	}
 
 	setConfig(config) {
@@ -26,6 +30,7 @@ export default class TermChat extends EventEmitter {
 		this.initVerbose();
 
 		this.__handlers = {};
+		this.__man = {};
 
 		this.initPackages();
 
@@ -95,21 +100,55 @@ export default class TermChat extends EventEmitter {
 		this.readline.prompt(true);
 	}
 
-	registerCommand(cmd, handler, silently) {
+	registerCommand(cmd, handler, man) {
 		if(cmd.length && typeof cmd === "object") {
 			for(var i=0;i<cmd.length;i++) {
-				this.registerCommand(cmd[i], handler, true);
+				this.registerCommand(cmd[i], handler, man);
 			}
-			this.emit('echo', `Command Registered: ${cmd}`);
 			return;
 		}
+
+		if(typeof handler !== "function") {
+			this.__man[cmd] = handler.man;
+			this.__handlers[cmd] = handler.cmd;
+			return;
+		} else if(man) {
+			this.__man[cmd] = man;
+		}
+
 		this.__handlers[cmd] = handler;
-		if(silently!==true) this.emit('echo', `Command Registered: ${cmd}`);
 	}
 
 	handleCommand(parts, raw) {
 		let cmd = parts[0].substr(1);
 		switch(cmd) {
+			case "man":
+			case "help":
+				if(!parts[1]) {
+					this.emit('echo',`Usage: /${cmd.toLowerCase()} [cmd_name]`+"\n");
+					this.emit('echo', "Commands:");
+					Object.keys(this.__handlers).forEach( (v) => {
+						this.emit('echo',` - ${v} ${this.__man.hasOwnProperty(v) ? "" : "(no docs)"}`);
+					});
+				} else if(this.__man.hasOwnProperty(parts[1])) {
+					let page = this.__man[parts[1]];
+					if(typeof page === "string") this.emit('echo', page);
+					else if(typeof page === "function") {
+						this.emit('echo', page());
+					}
+				} else {
+					if(this.__handlers.hasOwnProperty(parts[1])) {
+						this.emit('echo', `${parts[1]} does not have any help information`);
+					} else {
+						this.emit('echo', `${cmd.toUpperCase()}: Unknown command: ${parts[1]}`);
+					}
+				}
+				break;
+			case "ls":
+				this.emit('echo', [
+					"man", "ls", "verbose", "exit", "motd", "import", "error"
+				].concat(Object.keys(this.__handlers)).join("    "));
+				break;
 			case "verbose":
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
 				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
