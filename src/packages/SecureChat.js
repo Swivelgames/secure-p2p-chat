@@ -13,6 +13,8 @@ class SecureChat {
 	}
 
 	init() {
+		this.connections = [];
+
 		this.disableDecryption = false;
 
 		this.username = Terminal.config.username || "remote";
@@ -31,10 +33,6 @@ class SecureChat {
 			"local": {
 				"key": key,
 				"cert": cert
-			},
-			"remote": {
-				"cert": void 0,
-				"username": "remote"
 			}
 		};
 	}
@@ -77,21 +75,19 @@ class SecureChat {
 			try {
 				Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
 
-				var Clnt = this.client = new WebSocket('ws://'+parts[1]+'/');
+				(function(client){
+					client.on('open', () => {
+						this.killListener();
+						this.connections.push(let Conn = new Connection(client));
+						Conn.sendShake();
+					});
 
-				Clnt.on('open', () => {
-					this.killListener();
-
-					this.initConnection();
-					this.shakeHands();
-				});
-
-				Clnt.on('error', (err) => {
-					Term.emit('echo', `Unable to connect to socket: ${parts[1]}`);
-					Terminal.handleError(err);
-					this.killListener();
-					this.killClient();
-				});
+					client.on('error', (err) => {
+						Term.emit('echo', `Unable to connect to socket: ${parts[1]}`);
+						Terminal.handleError(err);
+						this.killListener();
+					});
+				})(new WebSocket('ws://'+parts[1]+'/'));
 			} catch(e) {
 				Terminal.handleError(e);
 			}
@@ -121,13 +117,10 @@ class SecureChat {
 					Term.emit('echo', `Common Problem: Make sure the port is not already in use by another instance or application.`);
 					Terminal.handleError(err);
 					this.killListener();
-					this.killClient();
 				});
 
 				Listener.on('connection', (remote) => {
-					this.client = remote;
-
-					this.initConnection();
+					this.connections.push(new Connection(remote));
 				});
 			} catch(e) {
 				Terminal.handleError(e);
@@ -137,45 +130,21 @@ class SecureChat {
 		});
 	}
 
-	initConnection() {
-		this.client.on('message', (raw) => {
-			if(!raw) return;
+	handleMessage(contents) {
+		Terminal.emit('echo',
+			(this.rsa.remote.username = contents.username || this.rsa.remote.username) +
+			Terminal.config.promptDelim +
+			origMsg
+		);
 
-			var parsed;
-			try {
-				parsed = JSON.parse(raw);
-			} catch(e) {}
-
-			this.handleMessage(raw, parsed);
-		});
-
-		this.client.on('close', () => {
-			if(this.listener) Terminal.emit('echo', '* SecureChat no longer listening...');
-			this.killClient();
-			this.killListener();
-			Terminal.removeAllListeners('message');
-			Terminal.emit('echo', `* ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
-		});
-	}
-
-	shakeHands() {
-		Terminal.emit('echo', 'Shaking hands...');
-
-		this.client.send(JSON.stringify({
-			"username": this.username,
-			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
-		}))
-	}
-
-	handleMessage(raw, parsed) {
-		if(!parsed) this.showRemoteMessage(raw);
+/*		if(!parsed) this.showRemoteMessage(raw);
 
 		if(parsed.hasOwnProperty('message')) {
 			this.showRemoteMessage(parsed.message, parsed.username, parsed.type || "text");
 		}
 		if(parsed.hasOwnProperty('publicCert')) {
 			this.handleHandshake(parsed);
-		}
+		}*/
 	}
 
 	showRemoteMessage(msg, username, type) {
@@ -200,31 +169,8 @@ class SecureChat {
 		}
 	}
 
-	handleHandshake(parsed) {
-		this.rsa.remote.cert = ursa.createPublicKey(parsed.publicCert);
-		this.rsa.remote.username = parsed.username;
-
-		if(this.listener) this.shakeHands();
-
-		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected this session.`);
-
-		Terminal.addListener('message', (msg, type) => {
-			if(!msg || this.client.readyState !== WebSocket.OPEN) return;
-
-			this.client.send(JSON.stringify({
-				"username": this.username,
-				"message": this.rsa.remote.cert.encrypt(msg, 'utf8', 'base64'),
-				"type": type || "text"
-			}));
-		});
-	}
-
 	killListener() {
 		if(this.listener && this.listener.close) this.listener.close();
-	}
-
-	killClient() {
-		if(this.client && this.client.close) this.client.close();
 	}
 }
 
