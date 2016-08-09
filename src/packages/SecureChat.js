@@ -18,6 +18,8 @@ class SecureChat {
 	}
 
 	init() {
+		this.debug = false;
+
 		this.connections = [];
 		this.handlers = {};
 
@@ -58,7 +60,10 @@ class SecureChat {
 		Terminal.emit('echo', 'Registering commands...');
 
 		Terminal.registerCommand('debug', () => {
-			this.connections.forEach( (v) => v.debug = !v.debug );
+			this.debug = !this.debug;
+			try {
+				this.connections.forEach( (v) => v.debug = this.debug );
+			} catch(e) {}
 			Terminal.emit('commandExit');
 		});
 
@@ -96,7 +101,8 @@ class SecureChat {
 					client.on('open', () => {
 						this.killListener();
 						client.REMOTE_ADDRESS = host;
-						let Conn = new Connection(client, this.rsa)
+						let Conn = new Connection(client, this.rsa);
+						Conn.debug = this.debug;
 						this.connections.push(Conn);
 						Conn.sendShake();
 					});
@@ -140,7 +146,9 @@ class SecureChat {
 
 				Listener.on('connection', (remote) => {
 					remote.REMOTE_ADDRESS = remote.upgradeReq.connection.remoteAddress;
-					this.connections.push(new Connection(remote, this.rsa));
+					let Conn = new Connection(remote, this.rsa)
+					Conn.debug = this.debug;
+					this.connections.push(Conn);
 				});
 			} catch(e) {
 				Terminal.handleError(e);
