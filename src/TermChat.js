@@ -26,6 +26,7 @@ export default class TermChat extends EventEmitter {
 		this.initVerbose();
 
 		this.__handlers = {};
+		this.__man = {};
 
 		this.initPackages();
 
@@ -95,21 +96,38 @@ export default class TermChat extends EventEmitter {
 		this.readline.prompt(true);
 	}
 
-	registerCommand(cmd, handler, silently) {
+	registerCommand(cmd, handler) {
 		if(cmd.length && typeof cmd === "object") {
 			for(var i=0;i<cmd.length;i++) {
 				this.registerCommand(cmd[i], handler, true);
 			}
-			this.emit('echo', `Command Registered: ${cmd}`);
 			return;
 		}
+
+		if(typeof handler !== "function") {
+			this.__man[cmd] = handler.man;
+			this.__handlers[cmd] = handler.cmd;
+			return;
+		}
+
 		this.__handlers[cmd] = handler;
-		if(silently!==true) this.emit('echo', `Command Registered: ${cmd}`);
 	}
 
 	handleCommand(parts, raw) {
 		let cmd = parts[0].substr(1);
 		switch(cmd) {
+			case "man":
+			case "help":
+				if(!parts[1])
+					this.emit('echo',`Usage: ${cmd.toLowerCase()} [cmd_name]`);
+				else if(this.__man.hasOwnProperty(parts[1])) {
+					let page = this.__man[parts[1]];
+					if(typeof page === "string") this.emit('echo', page);
+					else if(typeof page === "function") {
+						this.emit('echo', page());
+					}
+				}
+				break;
 			case "verbose":
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
 				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
