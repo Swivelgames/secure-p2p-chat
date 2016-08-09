@@ -65,7 +65,14 @@ class SecureChat {
 				this.connections.forEach( (v) => v.debug = this.debug );
 			} catch(e) {}
 			Terminal.emit('commandExit');
-		});
+		}, () =>`
+			Usage: /debug
+
+			Enables debug output for incoming messages.
+			Currently, this command does not output debug information for local commands.
+
+			[DEBUG MODE: ${this.debug}]
+		`.trim().replace(/\t/g,""));
 
 		Terminal.registerCommand('su', (parts, raw, Term) => {
 			let oldUsername = Term.config.username;
@@ -77,13 +84,27 @@ class SecureChat {
 				Term.redrawPrompt();
 				Term.emit('commandExit');
 			}, 100);
-		});
+		}, () =>`
+			Usage: /su [new_username]
+
+			Use this command to change your display name.
+
+			By default, your username is the user you're currently logged in as.
+		`.trim().replace(/\t/g,""));
 
 		Terminal.registerCommand('me', (parts, raw, Term) => {
 			let text = parts.slice(1).join(" ");
 			Terminal.emit('echo', `* ${this.username} ${text}`);
 			Terminal.emit('message', text, 'me');
-		})
+		}, () =>`
+			Usage: /me [msg]
+
+			Displays a message as if it were stated in third person.
+
+			Example:
+			$ /me is tired
+			* ${this.username} is tired
+		`.trim().replace(/\t/g,""))
 
 		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
 			try {
@@ -91,7 +112,11 @@ class SecureChat {
 				this.killListener();
 			} catch(e) {}
 			Terminal.emit('commandExit');
-		});
+		}, () =>`
+			Usage: /part
+
+			Gracefully closes the current connection
+		`.trim().replace(/\t/g,""));
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			try {
@@ -116,7 +141,11 @@ class SecureChat {
 			} catch(e) {
 				Terminal.handleError(e);
 			}
-		});
+		}, () =>`
+			Usage: /connect HOST:PORT
+
+			Connects to a currently listening SecureChat instance.
+		`.trim().replace(/\t/g,""));
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
 			try {
@@ -155,7 +184,18 @@ class SecureChat {
 			}
 
 			Term.emit('commandExit');
-		});
+		}, () =>`
+			Usage: /listen [HOST] PORT
+
+			HOST: Optional, defaults to 'localhost'
+			PORT: Port number, required if HOST is specified
+
+			Starts listening for new connections, allowing others to connect to your discussion session.
+
+			Currently, only one individual can connect.
+
+			If neither HOST nor PORT is provided, PORT is randomized.
+		`.trim().replace(/\t/g,""));
 	}
 
 	handleMessage(contents) {
