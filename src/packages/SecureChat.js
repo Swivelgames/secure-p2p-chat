@@ -66,6 +66,8 @@ class SecureChat {
 				var factory = require(path.join(__dirname, dir, v)).default;
 				var handler = factory(Terminal, this);
 
+				handler.package = "SecureChat";
+
 				Terminal.registerCommand(cmd, handler);
 			});
 		});
