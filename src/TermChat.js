@@ -29,8 +29,7 @@ export default class TermChat extends EventEmitter {
 	init() {
 		this.initVerbose();
 
-		this.__handlers = {};
-		this.__man = {};
+		this.Commands = {};
 
 		this.initCommands();
 		this.initPackages();
@@ -41,7 +40,7 @@ export default class TermChat extends EventEmitter {
 		this.addListener('command', this.handleCommand.bind(this) );
 		this.addListener('exec', (cmd) => {
 			this.emit('command', cmd.split(/\s+/), cmd);
-		})
+		});
 
 		this.initMotd();
 	}
@@ -130,14 +129,17 @@ export default class TermChat extends EventEmitter {
 		}
 
 		if(typeof handler !== "function") {
-			this.__man[cmd] = handler.man;
-			this.__handlers[cmd] = handler.cmd;
+			if(!handler.name) handler.name = cmd;
+			this.Commands[cmd] = handler;
 			return;
-		} else if(man) {
-			this.__man[cmd] = man;
 		}
 
-		this.__handlers[cmd] = handler;
+		this.Commands[cmd] = {
+			name: cmd,
+			package: "",
+			cmd: handler,
+			man: man
+		};
 	}
 
 	handleCommand(parts, raw) {
@@ -146,7 +148,7 @@ export default class TermChat extends EventEmitter {
 			case "ls":
 				this.emit('echo', [
 					"man", "ls", "verbose", "exit", "motd", "import", "error"
-				].concat(Object.keys(this.__handlers)).join("    "));
+				].concat(Object.keys(this.Commands)).join("    "));
 				break;
 			case "verbose":
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
@@ -185,9 +187,9 @@ export default class TermChat extends EventEmitter {
 				}
 				break;
 			default:
-				if(this.__handlers[cmd]) {
+				if(this.Commands.hasOwnProperty(cmd)) {
 					try {
-						this.__handlers[cmd](parts, raw, this);
+						this.Commands[cmd].cmd(parts, raw, this);
 					} catch(e) {
 						this.handleError(e);
 					}
