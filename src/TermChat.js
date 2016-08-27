@@ -29,15 +29,18 @@ export default class TermChat extends EventEmitter {
 	init() {
 		this.initVerbose();
 
-		this.__handlers = {};
-		this.__man = {};
+		this.Commands = {};
 
+		this.initCommands();
 		this.initPackages();
 
 		this.initPrompt();
 
 		this.addListener('echo', this.echo.bind(this) );
 		this.addListener('command', this.handleCommand.bind(this) );
+		this.addListener('exec', (cmd) => {
+			this.emit('command', cmd.split(/\s+/), cmd);
+		});
 
 		this.initMotd();
 	}
@@ -56,6 +59,23 @@ export default class TermChat extends EventEmitter {
 
 	initMotd() {
 		this.emit('echo', this.config.motd);
+	}
+
+	initCommands() {
+		var dir = './commands/';
+		fs.readdir( path.join(__dirname, dir), (err, files) => {
+			if(err) return;
+			files.forEach( (v) => {
+				var cmd = v.split('.')[0].toLowerCase();
+
+				var factory = require(path.join(__dirname, dir, v)).default;
+				var handler = factory(Terminal);
+
+				handler.package = "CORE";
+
+				Terminal.registerCommand(cmd, handler);
+			});
+		});
 	}
 
 	initPackages() {
@@ -109,45 +129,26 @@ export default class TermChat extends EventEmitter {
 		}
 
 		if(typeof handler !== "function") {
-			this.__man[cmd] = handler.man;
-			this.__handlers[cmd] = handler.cmd;
+			if(!handler.name) handler.name = cmd;
+			this.Commands[cmd] = handler;
 			return;
-		} else if(man) {
-			this.__man[cmd] = man;
 		}
 
-		this.__handlers[cmd] = handler;
+		this.Commands[cmd] = {
+			name: cmd,
+			package: "",
+			cmd: handler,
+			man: man
+		};
 	}
 
 	handleCommand(parts, raw) {
 		let cmd = parts[0].substr(1);
 		switch(cmd) {
-			case "man":
-			case "help":
-				if(!parts[1]) {
-					this.emit('echo',`Usage: /${cmd.toLowerCase()} [cmd_name]`+"\n");
-					this.emit('echo', "Commands:");
-					Object.keys(this.__handlers).forEach( (v) => {
-						this.emit('echo',` - ${v} ${this.__man.hasOwnProperty(v) ? "" : "(no docs)"}`);
-					});
-				} else if(this.__man.hasOwnProperty(parts[1])) {
-					let page = this.__man[parts[1]];
-					if(typeof page === "string") this.emit('echo', page);
-					else if(typeof page === "function") {
-						this.emit('echo', page());
-					}
-				} else {
-					if(this.__handlers.hasOwnProperty(parts[1])) {
-						this.emit('echo', `${parts[1]} does not have any help information`);
-					} else {
-						this.emit('echo', `${cmd.toUpperCase()}: Unknown command: ${parts[1]}`);
-					}
-				}
-				break;
 			case "ls":
 				this.emit('echo', [
 					"man", "ls", "verbose", "exit", "motd", "import", "error"
-				].concat(Object.keys(this.__handlers)).join("    "));
+				].concat(Object.keys(this.Commands)).join("    "));
 				break;
 			case "verbose":
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
@@ -186,9 +187,9 @@ export default class TermChat extends EventEmitter {
 				}
 				break;
 			default:
-				if(this.__handlers[cmd]) {
+				if(this.Commands.hasOwnProperty(cmd)) {
 					try {
-						this.__handlers[cmd](parts, raw, this);
+						this.Commands[cmd].cmd(parts, raw, this);
 					} catch(e) {
 						this.handleError(e);
 					}

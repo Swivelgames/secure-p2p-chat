@@ -57,66 +57,26 @@ class SecureChat {
 	}
 
 	initCommands() {
+		var dir = './SecureChat/commands/';
+		fs.readdir( path.join(__dirname, dir), (err, files) => {
+			if(err) return;
+			files.forEach( (v) => {
+				var cmd = v.split('.')[0].toLowerCase();
+
+				var factory = require(path.join(__dirname, dir, v)).default;
+				var handler = factory(Terminal, this);
+
+				handler.package = "SecureChat";
+
+				Terminal.registerCommand(cmd, handler);
+			});
+		});
+
+		this.initIncludedCommands();
+	}
+
+	initIncludedCommands() {
 		Terminal.emit('echo', 'Registering commands...');
-
-		Terminal.registerCommand('debug', () => {
-			this.debug = !this.debug;
-			try {
-				this.connections.forEach( (v) => v.debug = this.debug );
-			} catch(e) {}
-			Terminal.emit('commandExit');
-		}, () =>`
-			Usage: /debug
-
-			Enables debug output for incoming messages.
-			Currently, this command does not output debug information for local commands.
-
-			[DEBUG MODE: ${this.debug}]
-		`.trim().replace(/\t/g,""));
-
-		Terminal.registerCommand('su', (parts, raw, Term) => {
-			let oldUsername = Term.config.username;
-
-			Terminal.emit('message', `changed their username to ${parts[1]}`, 'me');
-
-			setTimeout( () => {
-				Term.config.username = this.username = parts[1];
-				Term.redrawPrompt();
-				Term.emit('commandExit');
-			}, 100);
-		}, () =>`
-			Usage: /su [new_username]
-
-			Use this command to change your display name.
-
-			By default, your username is the user you're currently logged in as.
-		`.trim().replace(/\t/g,""));
-
-		Terminal.registerCommand('me', (parts, raw, Term) => {
-			let text = parts.slice(1).join(" ");
-			Terminal.emit('echo', `* ${this.username} ${text}`);
-			Terminal.emit('message', text, 'me');
-		}, () =>`
-			Usage: /me [msg]
-
-			Displays a message as if it were stated in third person.
-
-			Example:
-			$ /me is tired
-			* ${this.username} is tired
-		`.trim().replace(/\t/g,""))
-
-		Terminal.registerCommand(['part','kick','leave','disconnect'], (parts, raw, Term) => {
-			try {
-				this.connections.forEach( (v) => v.close() );
-				this.killListener();
-			} catch(e) {}
-			Terminal.emit('commandExit');
-		}, () =>`
-			Usage: /part
-
-			Gracefully closes the current connection
-		`.trim().replace(/\t/g,""));
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			try {
