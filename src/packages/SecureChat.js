@@ -3,7 +3,7 @@ import ursa from 'ursa';
 import path from 'path';
 import yargs from 'yargs';
 import WebSocket from 'ws';
-import ConnectionClass from './Securechat/Connection.js';
+import ConnectionClass from './SecureChat/Connection.js';
 
 var Connection
 const Terminal = global.Terminal;
