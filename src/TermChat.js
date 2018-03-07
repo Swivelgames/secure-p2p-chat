@@ -11,7 +11,7 @@ import EventEmitter from 'events';
 export default class TermChat extends EventEmitter {
 	constructor(config) {
 		super();
-		if(config) {
+		if (config) {
 			this.setConfig(config);
 			this.init();
 		}
@@ -19,10 +19,10 @@ export default class TermChat extends EventEmitter {
 
 	setConfig(config) {
 		this.config = Object.assign({
-			"promptDelim": "$ ",
-			"username": process.env['USER'],
-			"motd": "Welcome to Terminal Chat",
-			"verbose": false
+			promptDelim: '$ ',
+			username: process.env.USER,
+			motd: 'Welcome to Terminal Chat',
+			verbose: false
 		}, config);
 	}
 
@@ -36,8 +36,8 @@ export default class TermChat extends EventEmitter {
 
 		this.initPrompt();
 
-		this.addListener('echo', this.echo.bind(this) );
-		this.addListener('command', this.handleCommand.bind(this) );
+		this.addListener('echo', this.echo.bind(this));
+		this.addListener('command', this.handleCommand.bind(this));
 		this.addListener('exec', (cmd) => {
 			this.emit('command', cmd.split(/\s+/), cmd);
 		});
@@ -46,14 +46,14 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initVerbose() {
-		if(!this.config.verbose) {
+		if (!this.config.verbose) {
 			this.emit = EventEmitter.prototype.emit.bind(this);
 			return;
 		}
 
-		this.emit = (function() {
+		this.emit = (function () {
 			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
-			return EventEmitter.prototype.emit.apply(this,arguments);
+			return EventEmitter.prototype.emit.apply(this, arguments);
 		}).bind(this);
 	}
 
@@ -63,15 +63,15 @@ export default class TermChat extends EventEmitter {
 
 	initCommands() {
 		const dir = './commands/';
-		fs.readdir( path.join(__dirname, dir), (err, files) => {
-			if(err) return;
-			files.forEach( (v) => {
+		fs.readdir(path.join(__dirname, dir), (err, files) => {
+			if (err) return;
+			files.forEach((v) => {
 				const cmd = v.split('.')[0].toLowerCase();
 
 				const factory = require(path.join(__dirname, dir, v)).default;
 				const handler = factory(Terminal);
 
-				handler.package = "CORE";
+				handler.package = 'CORE';
 
 				Terminal.registerCommand(cmd, handler);
 			});
@@ -79,10 +79,10 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initPackages() {
-		fs.readdir( path.join(__dirname, './packages/'), (err, files) => {
-			if(err) return;
-			files.forEach( (v) => {
-				this.localImport( path.join(__dirname, './packages/', v) );
+		fs.readdir(path.join(__dirname, './packages/'), (err, files) => {
+			if (err) return;
+			files.forEach((v) => {
+				this.localImport(path.join(__dirname, './packages/', v));
 			});
 		});
 	}
@@ -93,15 +93,15 @@ export default class TermChat extends EventEmitter {
 			output: process.stdout
 		});
 
-		this.curInput = "";
-		process.stdin.setEncoding("utf8");
+		this.curInput = '';
+		process.stdin.setEncoding('utf8');
 		process.stdin.on('data', (data) => {
 			this.curInput += data.toString('utf8');
 		});
 
 		this.readline.on('line', (msg) => {
-			if( msg.split(/\s+/)[0].substr(0,1) === "/" ) {
-				this.curInput = "";
+			if (msg.split(/\s+/)[0].substr(0, 1) === '/') {
+				this.curInput = '';
 				this.emit('command', msg.split(/\s+/), msg);
 				this.once('commandExit', () => {
 					this.prompt();
@@ -115,82 +115,82 @@ export default class TermChat extends EventEmitter {
 	}
 
 	prompt() {
-		this.curInput = "";
-		this.readline.setPrompt(this.config.username+this.config.promptDelim);
+		this.curInput = '';
+		this.readline.setPrompt(this.config.username + this.config.promptDelim);
 		this.readline.prompt(true);
 	}
 
 	registerCommand(cmd, handler, man) {
-		if(cmd.length && typeof cmd === "object") {
-			for(let i=0;i<cmd.length;i++) {
+		if (cmd.length && typeof cmd === 'object') {
+			for (let i = 0; i < cmd.length; i++) {
 				this.registerCommand(cmd[i], handler, man);
 			}
 			return;
 		}
 
-		if(typeof handler !== "function") {
-			if(!handler.name) handler.name = cmd;
+		if (typeof handler !== 'function') {
+			if (!handler.name) handler.name = cmd;
 			this.Commands[cmd] = handler;
 			return;
 		}
 
 		this.Commands[cmd] = {
 			name: cmd,
-			package: "",
+			package: '',
 			cmd: handler,
-			man: man
+			man
 		};
 	}
 
 	handleCommand(parts, raw) {
-		let cmd = parts[0].substr(1);
-		switch(cmd) {
-			case "ls":
+		const cmd = parts[0].substr(1);
+		switch (cmd) {
+			case 'ls':
 				this.emit('echo', [
-					"man", "ls", "verbose", "exit", "motd", "import", "error"
-				].concat(Object.keys(this.Commands)).join("    "));
+					'man', 'ls', 'verbose', 'exit', 'motd', 'import', 'error'
+				].concat(Object.keys(this.Commands)).join('    '));
 				break;
-			case "verbose":
+			case 'verbose':
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
 				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
 				this.config.verbose = !this.config.verbose;
 				this.initVerbose();
 				break;
-			case "exit":
-				console.log("Goodbye");
-				console.log(" ");
+			case 'exit':
+				console.log('Goodbye');
+				console.log(' ');
 				process.exit(0);
 				break;
-			case "motd":
+			case 'motd':
 				this.emit('echo', this.config.motd);
 				break;
-			case "import":
+			case 'import':
 				const importLoc = path.join(__dirname, '../', parts[1]);
 
 				let fileExists = false;
 				try {
 					fileExists = fs.statSync(importLoc).isFile();
-				} catch(e) {}
+				} catch (e) {}
 
-				if(fileExists) {
+				if (fileExists) {
 					this.localImport(importLoc);
 				} else {
 					this.remoteImport(parts[1]);
 				}
 				return;
 				break;
-			case "error":
-				if(this.__lastError) {
+			case 'error':
+				if (this.__lastError) {
 					this.emit('echo', this.__lastError);
 					this.emit('echo', this.__lastError.message);
 					this.emit('echo', this.__lastError.stack);
 				}
 				break;
 			default:
-				if(this.Commands.hasOwnProperty(cmd)) {
+				if (this.Commands.hasOwnProperty(cmd)) {
 					try {
 						this.Commands[cmd].cmd(parts, raw, this);
-					} catch(e) {
+					} catch (e) {
 						this.handleError(e);
 					}
 					return;
@@ -209,7 +209,7 @@ export default class TermChat extends EventEmitter {
 	}
 
 	echo(msg, forceEcho) {
-		if(this.config.verbose && !forceEcho) return;
+		if (this.config.verbose && !forceEcho) return;
 
 		this.readline.pause();
 		process.stdout.clearLine();
@@ -219,32 +219,30 @@ export default class TermChat extends EventEmitter {
 	}
 
 	redrawPrompt(newLine, curInput) {
-		if(newLine) console.log(" ");
-		if(!curInput) {
-			if(this.curInput) curInput = this.curInput;
-			else curInput = " ";
+		if (newLine) console.log(' ');
+		if (!curInput) {
+			if (this.curInput) curInput = this.curInput;
+			else curInput = ' ';
 		}
 
-		let promptText = this.config.username + this.config.promptDelim;
+		const promptText = this.config.username + this.config.promptDelim;
 		this.readline.setPrompt(promptText);
-		let text = promptText + curInput;
+		const text = promptText + curInput;
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
 		process.stdout.write(text);
-		process.stdout.cursorTo( (text.length) - 1 );
+		process.stdout.cursorTo((text.length) - 1);
 		this.readline.resume();
 	}
 
 	use(middleware) {
 		try {
 			if (middleware && middleware.constructor && typeof middleware.constructor === 'function') {
-				(() => {
-					return new middleware(this);
-				})();
+				(() => new middleware(this))();
 			} else {
 				middleware(this);
 			}
-		} catch(e) {
+		} catch (e) {
 			this.handleError(e);
 		} finally {
 			Terminal.emit('commandExit');
@@ -257,7 +255,7 @@ export default class TermChat extends EventEmitter {
 
 	remoteImport(importLoc) {
 		let getter;
-		if(importLoc.indexOf('https:') > -1) {
+		if (importLoc.indexOf('https:') > -1) {
 			getter = https;
 		} else {
 			getter = http;
@@ -275,11 +273,11 @@ export default class TermChat extends EventEmitter {
 					data += chunk;
 					process.stdout.cursorTo(0);
 					process.stdout.clearLine();
-					process.stdout.write("Importing [" + (progress=(
-						progress === "/" ? "|" :
-						progress === "|" ? "\\" :
-						progress === "\\" ? "-" : "/"
-					)) + "]");
+					process.stdout.write(`Importing [${progress = (
+						progress === '/' ? '|' :
+							progress === '|' ? '\\' :
+								progress === '\\' ? '-' : '/'
+					)}]`);
 				});
 
 				res.on('end', () => {
@@ -300,14 +298,14 @@ export default class TermChat extends EventEmitter {
 						const Module = vm.runInThisContext(data, opts);
 
 						this.use(Module);
-					} catch(e) {
+					} catch (e) {
 						this.handleError(e);
 					}
 
 					this.emit('commandExit');
 				});
 			});
-		} catch(e) {
+		} catch (e) {
 			this.handleError(e);
 		}
 	}

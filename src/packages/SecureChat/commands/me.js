@@ -1,7 +1,7 @@
-export default (Terminal,SecureChat) => {
+export default (Terminal, SecureChat) => {
 	class MeCommand {
 		cmd(parts, raw) {
-			let text = parts.slice(1).join(" ");
+			const text = parts.slice(1).join(' ');
 			Terminal.emit('echo', `* ${SecureChat.username} ${text}`);
 			Terminal.emit('message', text, 'me');
 		}
@@ -14,9 +14,9 @@ export default (Terminal,SecureChat) => {
 				Example:
 				$ /me is tired
 				* ${SecureChat.username} is tired
-			`.trim().replace(/\t/g,"");
+			`.trim().replace(/\t/g, '');
 		}
 	}
 
 	return new MeCommand();
-}
+};

@@ -1,10 +1,10 @@
-export default (Terminal,SecureChat) => {
+export default (Terminal, SecureChat) => {
 	class DebugCommand {
 		cmd() {
 			SecureChat.debug = !SecureChat.debug;
 			try {
-				SecureChat.connections.forEach( (v) => v.debug = SecureChat.debug );
-			} catch(e) {}
+				SecureChat.connections.forEach(v => v.debug = SecureChat.debug);
+			} catch (e) {}
 			Terminal.emit('echo', `DEBUG MODE: ${SecureChat.debug}`);
 			Terminal.emit('commandExit');
 		}
@@ -16,9 +16,9 @@ export default (Terminal,SecureChat) => {
 				Currently, this command does not output debug information for local commands.
 
 				[DEBUG MODE: ${SecureChat.debug}]
-			`.trim().replace(/\t/g,"");
+			`.trim().replace(/\t/g, '');
 		}
 	}
 
 	return new DebugCommand();
-}
+};

@@ -1,10 +1,10 @@
-export default (Terminal,SecureChat) => {
+export default (Terminal, SecureChat) => {
 	class PartCommand {
 		cmd() {
 			try {
-				SecureChat.connections.forEach( (v) => v.close() );
+				SecureChat.connections.forEach(v => v.close());
 				SecureChat.killListener();
-			} catch(e) {}
+			} catch (e) {}
 			Terminal.emit('commandExit');
 		}
 		man() {
@@ -12,9 +12,9 @@ export default (Terminal,SecureChat) => {
 				Usage: /part
 
 				Gracefully closes the current connection
-			`.trim().replace(/\t/g,"");
+			`.trim().replace(/\t/g, '');
 		}
 	}
 
 	return new PartCommand();
-}
+};

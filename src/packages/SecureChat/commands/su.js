@@ -1,11 +1,11 @@
-export default (Terminal,SecureChat) => {
+export default (Terminal, SecureChat) => {
 	class SuCommand {
 		cmd(parts, raw) {
-			let oldUsername = Terminal.config.username;
+			const oldUsername = Terminal.config.username;
 
 			Terminal.emit('message', `changed their username to ${parts[1]}`, 'me');
 
-			setTimeout( () => {
+			setTimeout(() => {
 				Terminal.config.username = SecureChat.username = parts[1];
 				Terminal.redrawPrompt();
 				Terminal.emit('commandExit');
@@ -18,9 +18,9 @@ export default (Terminal,SecureChat) => {
 				Use this command to change your display name.
 
 				By default, your username is the user you're currently logged in as.
-			`.trim().replace(/\t/g,"");
+			`.trim().replace(/\t/g, '');
 		}
 	}
 
 	return new SuCommand();
-}
+};
