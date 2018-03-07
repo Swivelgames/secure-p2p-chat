@@ -62,14 +62,14 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initCommands() {
-		var dir = './commands/';
+		const dir = './commands/';
 		fs.readdir( path.join(__dirname, dir), (err, files) => {
 			if(err) return;
 			files.forEach( (v) => {
-				var cmd = v.split('.')[0].toLowerCase();
+				const cmd = v.split('.')[0].toLowerCase();
 
-				var factory = require(path.join(__dirname, dir, v)).default;
-				var handler = factory(Terminal);
+				const factory = require(path.join(__dirname, dir, v)).default;
+				const handler = factory(Terminal);
 
 				handler.package = "CORE";
 
@@ -84,7 +84,7 @@ export default class TermChat extends EventEmitter {
 			files.forEach( (v) => {
 				this.localImport( path.join(__dirname, './packages/', v) );
 			});
-		})
+		});
 	}
 
 	initPrompt() {
@@ -122,7 +122,7 @@ export default class TermChat extends EventEmitter {
 
 	registerCommand(cmd, handler, man) {
 		if(cmd.length && typeof cmd === "object") {
-			for(var i=0;i<cmd.length;i++) {
+			for(let i=0;i<cmd.length;i++) {
 				this.registerCommand(cmd[i], handler, man);
 			}
 			return;
@@ -165,9 +165,9 @@ export default class TermChat extends EventEmitter {
 				this.emit('echo', this.config.motd);
 				break;
 			case "import":
-				var importLoc = path.join(__dirname, '../', parts[1]);
+				const importLoc = path.join(__dirname, '../', parts[1]);
 
-				var fileExists = false;
+				let fileExists = false;
 				try {
 					fileExists = fs.statSync(importLoc).isFile();
 				} catch(e) {}
@@ -203,7 +203,7 @@ export default class TermChat extends EventEmitter {
 	}
 
 	handleError(e) {
-		this.emit('echo', `Error: (Type: /error to view stack)`);
+		this.emit('echo', 'Error: (Type: /error to view stack)');
 		this.__lastError = e;
 		this.emit('commandExit');
 	}
@@ -235,9 +235,15 @@ export default class TermChat extends EventEmitter {
 		this.readline.resume();
 	}
 
-	localImport(importLoc) {
+	use(middleware) {
 		try {
-			require(importLoc);
+			if (middleware && middleware.constructor && typeof middleware.constructor === 'function') {
+				(() => {
+					return new middleware(this);
+				})();
+			} else {
+				middleware(this);
+			}
 		} catch(e) {
 			this.handleError(e);
 		} finally {
@@ -245,8 +251,12 @@ export default class TermChat extends EventEmitter {
 		}
 	}
 
+	localImport(importLoc) {
+		this.use(require(importLoc));
+	}
+
 	remoteImport(importLoc) {
-		var getter;
+		let getter;
 		if(importLoc.indexOf('https:') > -1) {
 			getter = https;
 		} else {
@@ -256,13 +266,13 @@ export default class TermChat extends EventEmitter {
 		try {
 			this.emit('echo', `Importing ${importLoc}`);
 			getter.get(importLoc, (res) => {
-				var progress = '/';
-				var data = '';
+				let progress = '/';
+				let data = '';
 
 				res.setEncoding('utf8');
 
 				res.on('data', (chunk) => {
-					data+=chunk;
+					data += chunk;
 					process.stdout.cursorTo(0);
 					process.stdout.clearLine();
 					process.stdout.write("Importing [" + (progress=(
@@ -273,10 +283,23 @@ export default class TermChat extends EventEmitter {
 				});
 
 				res.on('end', () => {
-					this.emit('echo', `Initializing and Contextualizing...`);
+					this.emit('echo', 'Initializing and Contextualizing...');
 
 					try {
-						eval(data);
+						this.emit('echo', 'Reading resource package file');
+
+						const opts = {
+							filename: path.join(
+								path.resolve(__dirname), Buffer.from(`${importLoc}`, 'utf8').toString('base64')
+							),
+							displayErrors: true
+						};
+
+						this.emit('echo', 'Executed script in new context');
+
+						const Module = vm.runInThisContext(data, opts);
+
+						this.use(Module);
 					} catch(e) {
 						this.handleError(e);
 					}

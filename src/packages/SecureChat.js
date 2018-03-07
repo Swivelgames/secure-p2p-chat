@@ -3,16 +3,13 @@ import ursa from 'ursa';
 import path from 'path';
 import yargs from 'yargs';
 import WebSocket from 'ws';
-import ConnectionClass from './SecureChat/Connection.js';
+import Connection from './SecureChat/Connection.js';
 
-var Connection
-const Terminal = global.Terminal;
-
-class SecureChat {
-	constructor() {
-		Terminal.emit('echo', 'Setting up SecureChat Package');
-
-		Connection = ConnectionClass(Terminal,this);
+export default class SecureChat {
+	constructor(Terminal) {
+		this.Terminal = Terminal;
+		this.emit = Terminal.emit.bind(Terminal);
+		this.emit('echo', 'Setting up SecureChat Package');
 
 		this.init();
 	}
@@ -31,10 +28,12 @@ class SecureChat {
 	}
 
 	initRSA() {
-		Terminal.emit('echo', 'Generating RSA key-pair for secure session');
+		this.emit('echo', 'Generating RSA key-pair for secure session');
 
 		var key = ursa.generatePrivateKey(),
 			cert = ursa.createPublicKey(key.toPublicPem());
+
+		this.secret = '';
 
 		this.rsa = {
 			"local": {
@@ -76,28 +75,13 @@ class SecureChat {
 	}
 
 	initIncludedCommands() {
-		Terminal.emit('echo', 'Registering commands...');
+		this.emit('echo', 'Registering commands...');
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			try {
 				Terminal.emit('echo', 'Connecting to socket: '+parts[1]);
 
-				(function(client, host){
-					client.on('open', () => {
-						this.killListener();
-						client.REMOTE_ADDRESS = host;
-						let Conn = new Connection(client, this.rsa);
-						Conn.debug = this.debug;
-						this.connections.push(Conn);
-						Conn.sendShake();
-					});
-
-					client.on('error', (err) => {
-						Term.emit('echo', `Unable to connect to socket: ${host}`);
-						Terminal.handleError(err);
-						this.killListener();
-					});
-				}).call(this, new WebSocket('ws://'+parts[1]+'/'), parts[1]);
+				this.client = new Client(this, parts, raw, Term);
 			} catch(e) {
 				Terminal.handleError(e);
 			}
@@ -168,5 +152,3 @@ class SecureChat {
 		if(this.listener && this.listener.close) this.listener.close();
 	}
 }
-
-global.SecureChatInstance = new SecureChat();
