@@ -1,8 +1,8 @@
 import fs from 'fs';
 import ursa from 'ursa';
 import path from 'path';
-import yargs from 'yargs';
 import WebSocket from 'ws';
+import Client from './SecureChat/Client.js';
 import Connection from './SecureChat/Connection.js';
 
 export default class SecureChat {
@@ -11,10 +11,6 @@ export default class SecureChat {
 		this.emit = Terminal.emit.bind(Terminal);
 		this.emit('echo', 'Setting up SecureChat Package');
 
-		this.init();
-	}
-
-	init() {
 		this.debug = false;
 
 		this.connections = [];
@@ -30,8 +26,8 @@ export default class SecureChat {
 	initRSA() {
 		this.emit('echo', 'Generating RSA key-pair for secure session');
 
-		let key = ursa.generatePrivateKey(),
-			cert = ursa.createPublicKey(key.toPublicPem());
+		const key = ursa.generatePrivateKey();
+		const cert = ursa.createPublicKey(key.toPublicPem());
 
 		this.secret = '';
 
@@ -44,7 +40,9 @@ export default class SecureChat {
 	}
 
 	initHandlers() {
+		const { Terminal } = this;
 		const dir = './SecureChat/handlers/';
+
 		fs.readdir(path.join(__dirname, dir), (err, files) => {
 			if (err) return;
 			files.forEach((v) => {
@@ -56,7 +54,9 @@ export default class SecureChat {
 	}
 
 	initCommands() {
+		const { Terminal } = this;
 		const dir = './SecureChat/commands/';
+
 		fs.readdir(path.join(__dirname, dir), (err, files) => {
 			if (err) return;
 			files.forEach((v) => {
@@ -76,6 +76,8 @@ export default class SecureChat {
 
 	initIncludedCommands() {
 		this.emit('echo', 'Registering commands...');
+
+		const { Terminal } = this;
 
 		Terminal.registerCommand('connect', (parts, raw, Term) => {
 			try {
@@ -106,7 +108,8 @@ export default class SecureChat {
 					opts.port = parts[1];
 				}
 
-				const Listener = this.listener = new WebSocket.Server(opts);
+				const Listener = new WebSocket.Server(opts);
+				this.listener = Listener;
 
 				Term.emit('echo', `Listening for connections on port: ${opts.host || 'localhost'}:${opts.port}`);
 
@@ -118,9 +121,20 @@ export default class SecureChat {
 				});
 
 				Listener.on('connection', (remote) => {
-					remote.REMOTE_ADDRESS = remote.upgradeReq.connection.remoteAddress;
-					const Conn = new Connection(remote, this.rsa);
+					const {
+						upgradeReq: {
+							connection: {
+								remoteAddress: REMOTE_ADDRESS
+							}
+						}
+					} = remote;
+					const Conn = new Connection(Terminal, SecureChat, {
+						...remote,
+						REMOTE_ADDRESS
+					}, this.rsa);
+
 					Conn.debug = this.debug;
+
 					this.connections.push(Conn);
 				});
 			} catch (e) {

@@ -1,8 +1,8 @@
-import os from 'os';
+/* eslint-disable no-console */
+
 import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
-import util from 'util';
 import http from 'http';
 import https from 'https';
 import readline from 'readline';
@@ -51,10 +51,10 @@ export default class TermChat extends EventEmitter {
 			return;
 		}
 
-		this.emit = (function () {
-			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
-			return EventEmitter.prototype.emit.apply(this, arguments);
-		}).bind(this);
+		this.emit = (...args) => {
+			this.echo(`[${args[0]}] ${args[1]}`, true);
+			return EventEmitter.prototype.emit.apply(this, args);
+		};
 	}
 
 	initMotd() {
@@ -69,11 +69,11 @@ export default class TermChat extends EventEmitter {
 				const cmd = v.split('.')[0].toLowerCase();
 
 				const factory = require(path.join(__dirname, dir, v)).default;
-				const handler = factory(Terminal);
+				const handler = factory(this);
 
 				handler.package = 'CORE';
 
-				Terminal.registerCommand(cmd, handler);
+				this.registerCommand(cmd, handler);
 			});
 		});
 	}
@@ -122,15 +122,17 @@ export default class TermChat extends EventEmitter {
 
 	registerCommand(cmd, handler, man) {
 		if (cmd.length && typeof cmd === 'object') {
-			for (let i = 0; i < cmd.length; i++) {
+			for (let i = 0; i < cmd.length; i += 1) {
 				this.registerCommand(cmd[i], handler, man);
 			}
 			return;
 		}
 
 		if (typeof handler !== 'function') {
-			if (!handler.name) handler.name = cmd;
-			this.Commands[cmd] = handler;
+			const { name = cmd } = handler;
+			this.Commands[cmd] = {
+				...handler, name
+			};
 			return;
 		}
 
@@ -157,28 +159,16 @@ export default class TermChat extends EventEmitter {
 				this.initVerbose();
 				break;
 			case 'exit':
-				console.log('Goodbye');
-				console.log(' ');
+				this.emit('echo', 'Goodbye');
+				this.emit('echo', ' ');
 				process.exit(0);
 				break;
 			case 'motd':
 				this.emit('echo', this.config.motd);
 				break;
 			case 'import':
-				const importLoc = path.join(__dirname, '../', parts[1]);
-
-				let fileExists = false;
-				try {
-					fileExists = fs.statSync(importLoc).isFile();
-				} catch (e) {}
-
-				if (fileExists) {
-					this.localImport(importLoc);
-				} else {
-					this.remoteImport(parts[1]);
-				}
+				this.import(parts, raw);
 				return;
-				break;
 			case 'error':
 				if (this.__lastError) {
 					this.emit('echo', this.__lastError);
@@ -187,7 +177,9 @@ export default class TermChat extends EventEmitter {
 				}
 				break;
 			default:
-				if (this.Commands.hasOwnProperty(cmd)) {
+				if (Object.getOwnPropertyNames(
+					this.Commands
+				).indexOf(cmd) > -1) {
 					try {
 						this.Commands[cmd].cmd(parts, raw, this);
 					} catch (e) {
@@ -220,32 +212,55 @@ export default class TermChat extends EventEmitter {
 
 	redrawPrompt(newLine, curInput) {
 		if (newLine) console.log(' ');
-		if (!curInput) {
-			if (this.curInput) curInput = this.curInput;
-			else curInput = ' ';
-		}
+		const input = curInput || this.curInput || ' ';
 
 		const promptText = this.config.username + this.config.promptDelim;
+
 		this.readline.setPrompt(promptText);
-		const text = promptText + curInput;
+
+		const text = `${promptText}${input}`;
+
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
 		process.stdout.write(text);
 		process.stdout.cursorTo((text.length) - 1);
+
 		this.readline.resume();
 	}
 
-	use(middleware) {
+	use(Middleware) {
 		try {
-			if (middleware && middleware.constructor && typeof middleware.constructor === 'function') {
-				(() => new middleware(this))();
-			} else {
-				middleware(this);
+			// console.log(JSON.stringify({
+			// 	Middleware,
+			// 	construct: typeof Middleware,
+			// 	name: Middleware.constructor.name,
+			// 	typeof: typeof Middleware.constructor
+			// }, null, '\t'));
+
+			if (Middleware && Middleware.constructor && typeof Middleware.constructor === 'function') {
+				return new Middleware(this);
 			}
+			return Middleware(this);
 		} catch (e) {
 			this.handleError(e);
 		} finally {
-			Terminal.emit('commandExit');
+			this.emit('commandExit');
+		}
+		return null;
+	}
+
+	import([, addr]) {
+		const importLoc = path.join(__dirname, '../', addr);
+
+		let fileExists = false;
+		try {
+			fileExists = fs.statSync(importLoc).isFile();
+		} catch (e) { /* fail silently */ }
+
+		if (fileExists) {
+			this.localImport(importLoc);
+		} else {
+			this.remoteImport(addr);
 		}
 	}
 
@@ -270,6 +285,7 @@ export default class TermChat extends EventEmitter {
 				res.setEncoding('utf8');
 
 				res.on('data', (chunk) => {
+					/* eslint-disable no-nested-ternary */
 					data += chunk;
 					process.stdout.cursorTo(0);
 					process.stdout.clearLine();
@@ -278,6 +294,7 @@ export default class TermChat extends EventEmitter {
 							progress === '|' ? '\\' :
 								progress === '\\' ? '-' : '/'
 					)}]`);
+					/* eslint-enable no-nested-ternary */
 				});
 
 				res.on('end', () => {
