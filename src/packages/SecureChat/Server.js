@@ -17,6 +17,7 @@ export default class Server {
 			opts.host = parts[1];
 		} else if (parts.length > 1) {
 			opts.port = parts[1];
+			opts.host = '0.0.0.0';
 		}
 
 		this.options = opts;
