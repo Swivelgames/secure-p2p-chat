@@ -1,6 +1,6 @@
 {
   "name": "secure-chat",
-  "version": "1.0.4",
+  "version": "2.0.0",
   "description": "Secure P2P chat",
   "main": "app.js",
   "scripts": {
