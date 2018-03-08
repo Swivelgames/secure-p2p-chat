@@ -41,7 +41,8 @@ export default class Connection {
 
 			if (type === 'SHAKE') {
 				if (this.debug) this.emit('echo', `[SHAKE] => ${contents}`);
-				return this.handleShake(type, contents);
+				this.handleShake(type, contents);
+				return;
 			}
 
 			const msg = new Message(this);
@@ -57,10 +58,11 @@ export default class Connection {
 			if (this.debug) this.emit('echo', `[${type}] => ${util.inspect(msg, false, 0)}`);
 
 			if (type === 'HELO') {
-				return this.handleHelo(type, msg);
+				this.handleHelo(type, msg);
+				return;
 			}
 
-			return this.handleMessage(type, msg);
+			this.handleMessage(type, msg);
 		});
 
 		this.client.on('close', () => {
@@ -80,13 +82,13 @@ export default class Connection {
 		Terminal.addListener('message', (msg, type) => {
 			if (!msg || this.client.readyState !== WebSocket.OPEN) return;
 
-			var msg = new Message({
+			const msgInst = new Message({
 				type: type || 'text',
 				username,
 				message: msg
 			}, this);
 
-			this.client.send(msg.toString());
+			this.client.send(msgInst.toString());
 		});
 	}
 
@@ -101,7 +103,8 @@ export default class Connection {
 			);
 		} catch (e) {
 			this.emit('echo', 'Terminating Connection (Malformed handshake: SHAKE)');
-			return this.terminate();
+			this.terminate();
+			return;
 		}
 		this.flags.SHAKE += 2;
 
@@ -122,7 +125,7 @@ export default class Connection {
 
 		this.client.send(msg.toString());
 
-		this.flags.SHAKE++;
+		this.flags.SHAKE += 1;
 	}
 
 	handleHelo(type, msg) {
@@ -130,11 +133,11 @@ export default class Connection {
 
 		if (this.flags.SHAKE !== 3) {
 			this.emit('echo', 'Handshake steps were out of order. Terminating session.');
-			return this.terminate();
+			this.terminate();
+			return;
 		}
 
-		if (this.flags.HELO === 3
-		|| this.flags.HELO === 2) return;
+		if (this.flags.HELO === 3 || this.flags.HELO === 2) return;
 
 		this.rsa.remote.username = msg.username;
 		this.flags.HELO += 2;
@@ -158,29 +161,30 @@ export default class Connection {
 
 		this.client.send(msg.toString());
 
-		this.flags.HELO++;
+		this.flags.HELO += 1;
 
 		if (this.flags.HELO === 3 && this.flags.SHAKE === 3) this.ready();
 	}
 
 	handleMessage(type, contents) {
-		const { Terminal, SecureChat } = this;
-
-		if (this.flags.SHAKE !== 3
-		|| this.flags.HELO !== 3) {
+		const { SecureChat } = this;
+		if (this.flags.SHAKE !== 3 || this.flags.HELO !== 3) {
 			this.emit('echo', 'Terminating Connection (Received message before handshake completed)');
-			return this.terminate();
+			this.terminate();
+			return;
 		}
 
 		let parsed;
 		try {
 			parsed = JSON.parse(contents);
-		} catch (e) {}
+		} catch (e) {
+			parsed = contents;
+		}
 
-		contents.type = type;
-		contents.username = contents.username || this.rsa.remote.username;
+		parsed.type = type;
+		parsed.username = parsed.username || this.rsa.remote.username;
 
-		this.SecureChat.handleMessage(contents);
+		SecureChat.handleMessage(parsed);
 	}
 
 	close() {
