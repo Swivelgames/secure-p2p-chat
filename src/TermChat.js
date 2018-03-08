@@ -1,5 +1,4 @@
-/* eslint-disable no-console */
-
+/* eslint-disable no-console, no-param-reassign */
 import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
@@ -7,6 +6,8 @@ import http from 'http';
 import https from 'https';
 import readline from 'readline';
 import EventEmitter from 'events';
+
+const urlRegex = /^[a-zA-Z0-9]+:\/\/[a-zA-Z0-9]+\.[-a-zA-Z0-9]+\.?[a-zA-Z0-9]+$|^[a-zA-Z0-9]+\.[-a-zA-Z0-9]+\.[a-zA-Z0-9]+$/;
 
 export default class TermChat extends EventEmitter {
 	constructor(config) {
@@ -79,11 +80,14 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initPackages() {
-		fs.readdir(path.join(__dirname, './packages/'), (err, files) => {
+		const pkgDir = path.join(__dirname, './packages/');
+		fs.readdir(pkgDir, (err, files) => {
 			if (err) return;
-			files.forEach((v) => {
-				this.localImport(path.join(__dirname, './packages/', v));
-			});
+			files
+				.map(p => path.join(pkgDir, p))
+				.map(p => path.resolve(p))
+				.filter(p => !fs.statSync(p).isDirectory())
+				.forEach(p => this.localImport(p));
 		});
 	}
 
@@ -128,20 +132,26 @@ export default class TermChat extends EventEmitter {
 			return;
 		}
 
-		if (typeof handler !== 'function') {
-			const { name = cmd } = handler;
+		if (typeof handler !== 'function' && typeof handler.cmd !== 'function') {
+			try {
+				throw new TypeError(`Error registering command; Incomplete manifest: ${JSON.stringify(handler, null, '\t')}`);
+			} catch (e) {
+				this.handleError(e);
+			}
+		}
+
+		if (typeof handler === 'function') {
 			this.Commands[cmd] = {
-				...handler, name
+				name: cmd,
+				package: '',
+				cmd: handler,
+				man
 			};
 			return;
 		}
 
-		this.Commands[cmd] = {
-			name: cmd,
-			package: '',
-			cmd: handler,
-			man
-		};
+		handler.name = handler.name || cmd;
+		this.Commands[cmd] = handler;
 	}
 
 	handleCommand(parts, raw) {
@@ -167,7 +177,7 @@ export default class TermChat extends EventEmitter {
 				this.emit('echo', this.config.motd);
 				break;
 			case 'import':
-				this.import(parts, raw);
+				this.import(parts[1]);
 				return;
 			case 'error':
 				if (this.__lastError) {
@@ -180,8 +190,9 @@ export default class TermChat extends EventEmitter {
 				if (Object.getOwnPropertyNames(
 					this.Commands
 				).indexOf(cmd) > -1) {
+					const { [cmd]: cmdManifest } = this.Commands;
 					try {
-						this.Commands[cmd].cmd(parts, raw, this);
+						cmdManifest.cmd(parts, raw, this);
 					} catch (e) {
 						this.handleError(e);
 					}
@@ -229,6 +240,7 @@ export default class TermChat extends EventEmitter {
 	}
 
 	use(Middleware) {
+		const { default: Module = Middleware } = Middleware;
 		try {
 			// console.log(JSON.stringify({
 			// 	Middleware,
@@ -237,10 +249,10 @@ export default class TermChat extends EventEmitter {
 			// 	typeof: typeof Middleware.constructor
 			// }, null, '\t'));
 
-			if (Middleware && Middleware.constructor && typeof Middleware.constructor === 'function') {
-				return new Middleware(this);
+			if (Module && Module.constructor && typeof Module.constructor === 'function') {
+				return new Module(this);
 			}
-			return Middleware(this);
+			return Module(this);
 		} catch (e) {
 			this.handleError(e);
 		} finally {
@@ -249,7 +261,12 @@ export default class TermChat extends EventEmitter {
 		return null;
 	}
 
-	import([, addr]) {
+	import(addr) {
+		if (urlRegex.test(addr)) {
+			this.remoteImport(addr);
+			return;
+		}
+
 		const importLoc = path.join(__dirname, '../', addr);
 
 		let fileExists = false;

@@ -1,9 +1,8 @@
 import fs from 'fs';
 import ursa from 'ursa';
 import path from 'path';
-import WebSocket from 'ws';
 import Client from './SecureChat/Client.js';
-import Connection from './SecureChat/Connection.js';
+import Server from './SecureChat/Server.js';
 
 export default class SecureChat {
 	constructor(Terminal) {
@@ -95,48 +94,9 @@ export default class SecureChat {
 
 		Terminal.registerCommand('listen', (parts, raw, Term) => {
 			try {
-				this.killListener();
+				Terminal.emit('echo', 'Starting listener...');
 
-				const opts = {
-					port: Math.floor(Math.random() * 10000)
-				};
-
-				if (parts.length > 2) {
-					opts.port = parts[2];
-					opts.host = parts[1];
-				} else if (parts.length > 1) {
-					opts.port = parts[1];
-				}
-
-				const Listener = new WebSocket.Server(opts);
-				this.listener = Listener;
-
-				Term.emit('echo', `Listening for connections on port: ${opts.host || 'localhost'}:${opts.port}`);
-
-				Listener.on('error', (err) => {
-					Term.emit('echo', `Unable to listen for connections on port: ${opts.host || 'localhost'}:${opts.port}`);
-					Term.emit('echo', 'Common Problem: Make sure the port is not already in use by another instance or application.');
-					Terminal.handleError(err);
-					this.killListener();
-				});
-
-				Listener.on('connection', (remote) => {
-					const {
-						upgradeReq: {
-							connection: {
-								remoteAddress: REMOTE_ADDRESS
-							}
-						}
-					} = remote;
-					const Conn = new Connection(Terminal, SecureChat, {
-						...remote,
-						REMOTE_ADDRESS
-					}, this.rsa);
-
-					Conn.debug = this.debug;
-
-					this.connections.push(Conn);
-				});
+				this.listener = new Server(this, parts, raw, Term);
 			} catch (e) {
 				Terminal.handleError(e);
 			}
