@@ -24,21 +24,24 @@ export default class Message {
 				)
 			);
 		} catch (e) {
-			return e;
+			return;
 		}
 
 		Object.assign(this, parsed);
 	}
 
 	toString() {
-		let ret = {};
-		Object.keys(this).filter(
-			v => (['type', 'conn', 'raw'].indexOf(v) > -1 ? false : !!this[v])
-		).forEach(
-			v => ret[v] = this[v]
-		);
+		const retObj = Object
+			.keys(this)
+			.filter(
+				v => (['type', 'conn', 'raw'].indexOf(v) > -1 ? false : !!this[v])
+			)
+			.reduce((r, cV) => ({
+				...r,
+				[cV]: this[cV]
+			}), {});
 
-		ret = JSON.stringify(ret);
+		let ret = JSON.stringify(retObj);
 		if (this.type !== 'SHAKE') {
 			ret = this.conn.rsa.remote.cert.encrypt(ret, 'utf8', 'base64');
 		}
