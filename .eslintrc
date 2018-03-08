@@ -20,6 +20,11 @@
 		"function-paren-newline": 0,
 		"global-require": 0,
 		"prefer-destructuring": ["error", { "AssignmentExpression": { "array": false, "object": false } }],
-		"max-len": ["error", { "ignoreComments": true, "ignoreStrings": true, "ignoreTemplateLiterals": true } ]
+		"max-len": ["error", {
+			"ignoreComments": true,
+			"ignoreStrings": true,
+			"ignoreTemplateLiterals": true,
+			"ignoreRegExpLiterals": true
+		}]
 	}
 }
