@@ -1,5 +1,3 @@
-export default (Terminal, SecureChat) => {
-	return (contents) => {
-		Terminal.emit('echo', `* ${contents.username} ${contents.message}`);
-	}
-}
+export default Terminal => (contents) => {
+	Terminal.emit('echo', `* ${contents.username} ${contents.message}`);
+};

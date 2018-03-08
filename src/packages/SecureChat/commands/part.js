@@ -1,20 +1,15 @@
-export default (Terminal,SecureChat) => {
-	class PartCommand {
-		cmd() {
-			try {
-				SecureChat.connections.forEach( (v) => v.close() );
-				SecureChat.killListener();
-			} catch(e) {}
-			Terminal.emit('commandExit');
-		}
-		man() {
-			return `
-				Usage: /part
+export default (Terminal, SecureChat) => ({
+	cmd: () => {
+		try {
+			SecureChat.connections.forEach(v => v.close());
+			SecureChat.killListener();
+		} catch (e) { /* fail silently */ }
+		Terminal.emit('commandExit');
+	},
 
-				Gracefully closes the current connection
-			`.trim().replace(/\t/g,"");
-		}
-	}
+	man: () => `
+		Usage: /part
 
-	return new PartCommand();
-}
+		Gracefully closes the current connection
+	`.trim().replace(/\t/g, '')
+});

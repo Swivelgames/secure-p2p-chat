@@ -1,4 +1,4 @@
-const GroupSeparator = "\u001d";
+const GroupSeparator = '\u001d';
 
 export default class Message {
 	constructor(obj, conn) {
@@ -6,7 +6,7 @@ export default class Message {
 		this.message = void 0;
 		this.username = void 0;
 
-		if(!conn) this.conn = obj;
+		if (!conn) this.conn = obj;
 		else {
 			this.conn = conn;
 			Object.assign(this, obj);
@@ -16,30 +16,33 @@ export default class Message {
 	decrypt(message) {
 		this.raw = message;
 
-		var parsed;
+		let parsed;
 		try {
 			parsed = JSON.parse(
 				this.conn.rsa.local.key.decrypt(
 					message, 'base64', 'utf8'
 				)
 			);
-		} catch(e) {
-			return e;
+		} catch (e) {
+			return;
 		}
 
 		Object.assign(this, parsed);
 	}
 
 	toString() {
-		var ret = {};
-		Object.keys(this).filter(
-			v => ["type","conn","raw"].indexOf(v) > -1 ? false : !!this[v]
-		).forEach(
-			v => ret[v] = this[v]
-		);
+		const retObj = Object
+			.keys(this)
+			.filter(
+				v => (['type', 'conn', 'raw'].indexOf(v) > -1 ? false : !!this[v])
+			)
+			.reduce((r, cV) => ({
+				...r,
+				[cV]: this[cV]
+			}), {});
 
-		ret = JSON.stringify(ret);
-		if(this.type!=="SHAKE") {
+		let ret = JSON.stringify(retObj);
+		if (this.type !== 'SHAKE') {
 			ret = this.conn.rsa.remote.cert.encrypt(ret, 'utf8', 'base64');
 		}
 

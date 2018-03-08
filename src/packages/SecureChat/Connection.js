@@ -1,187 +1,198 @@
 import util from 'util';
-import url from 'url';
-import fs from 'fs';
 import ursa from 'ursa';
-import yargs from 'yargs';
 import WebSocket from 'ws';
 import Message from './Message.js';
 
-const GroupSeparator = "\u001d";
+const GroupSeparator = '\u001d';
 
-export default (Terminal,SecureChat) => class Connection {
-	constructor(client, rsa) {
+export default class Connection {
+	constructor(Terminal, SecureChat, client, rsa) {
+		this.Terminal = Terminal;
+		this.SecureChat = SecureChat;
+		this.emit = Terminal.emit.bind(Terminal);
+
 		this.client = client;
 
 		this.debug = false;
 
 		this.rsa = {
-			"local": rsa.local,
-			"remote": {
-				"cert": void 0,
-				"username": "remote"
+			local: rsa.local,
+			remote: {
+				cert: void 0,
+				username: 'remote'
 			}
 		};
 
 		this.flags = {
-			"SHAKE": 0, // 1=LOCAL,2=REMOTE,3=BOTH(READY FOR HELO)
-			"HELO": 0 // 1=LOCAL,2=REMOTE,3=BOTH(READY FOR CHAT)
+			SHAKE: 0, // 1=LOCAL,2=REMOTE,3=BOTH(READY FOR HELO)
+			HELO: 0 // 1=LOCAL,2=REMOTE,3=BOTH(READY FOR CHAT)
 		};
 
 		this.init();
 	}
 
 	init() {
-		Terminal.emit('echo', `Establishing new connection with ${this.client.REMOTE_ADDRESS}`);
+		this.emit('echo', `Establishing new connection with ${this.client.REMOTE_ADDRESS}`);
 
 		this.client.on('message', (raw) => {
-			if(!raw) return;
+			if (!raw) return;
 
-			let [type,contents] = raw.split(GroupSeparator);
+			const [type, contents] = raw.split(GroupSeparator);
 
-			if(type==="SHAKE") {
-				if(this.debug) Terminal.emit('echo', `[SHAKE] => ${contents}`);
-				return this.handleShake(type, contents);
+			if (type === 'SHAKE') {
+				if (this.debug) this.emit('echo', `[SHAKE] => ${contents}`);
+				this.handleShake(type, contents);
+				return;
 			}
 
-			let msg = new Message(this);
-			let error = msg.decrypt(contents);
-			if(error) {
-				Terminal.emit('echo', `Terminating Connection (received malformed socket message)`);
+			const msg = new Message(this);
+			const error = msg.decrypt(contents);
+			if (error) {
+				this.emit('echo', 'Terminating Connection (received malformed socket message)');
 				this.terminate();
 				return;
 			}
 
 			msg.type = type;
 
-			if(this.debug) Terminal.emit('echo', `[${type}] => ${util.inspect(msg, false, 0)}`);
+			if (this.debug) this.emit('echo', `[${type}] => ${util.inspect(msg, false, 0)}`);
 
-			if(type==="HELO") {
-				return this.handleHelo(type, msg);
+			if (type === 'HELO') {
+				this.handleHelo(type, msg);
+				return;
 			}
 
-			return this.handleMessage(type, msg);
+			this.handleMessage(type, msg);
 		});
 
 		this.client.on('close', () => {
-			if(this.listener) Terminal.emit('echo', '* SecureChat no longer listening...');
+			if (this.listener) this.emit('echo', '* SecureChat no longer listening...');
 			this.close();
-			Terminal.removeAllListeners('message');
-			Terminal.emit('echo', `* ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
+			this.Terminal.removeAllListeners('message');
+			this.emit('echo', `* ${this.rsa.remote.username} has left this session: (Connection reset by peer)`);
 			this.terminate();
 		});
 	}
 
 	ready() {
-		Terminal.emit('echo', `* ${this.rsa.remote.username} has connected this session.`);
+		const { SecureChat: { username }, Terminal } = this;
+
+		this.emit('echo', `* ${this.rsa.remote.username} has connected this session.`);
 
 		Terminal.addListener('message', (msg, type) => {
-			if(!msg || this.client.readyState !== WebSocket.OPEN) return;
+			if (!msg || this.client.readyState !== WebSocket.OPEN) return;
 
-			var msg = new Message({
-				"type": type || "text",
-				"username": SecureChat.username,
-				"message": msg
+			const msgInst = new Message({
+				type: type || 'text',
+				username,
+				message: msg
 			}, this);
 
-			this.client.send(msg.toString());
+			this.client.send(msgInst.toString());
 		});
 	}
 
-	handleShake(type,contents) {
-		Terminal.emit('echo', 'Received SHAKE...');
+	handleShake(type, contents) {
+		this.emit('echo', 'Received SHAKE...');
 
-		if(this.flags.SHAKE===2) return;
+		if (this.flags.SHAKE === 2) return;
 
 		try {
 			this.rsa.remote.cert = ursa.createPublicKey(
 				(JSON.parse(contents)).publicCert
 			);
-		} catch(e) {
-			Terminal.emit('echo', `Terminating Connection (Malformed handshake: SHAKE)`);
-			return this.terminate();
+		} catch (e) {
+			this.emit('echo', 'Terminating Connection (Malformed handshake: SHAKE)');
+			this.terminate();
+			return;
 		}
-		this.flags.SHAKE+=2;
+		this.flags.SHAKE += 2;
 
-		if(this.flags.SHAKE===3) {
+		if (this.flags.SHAKE === 3) {
 			this.sendHelo();
-		} else if(this.flags.SHAKE===2) {
+		} else if (this.flags.SHAKE === 2) {
 			this.sendShake();
 		}
 	}
 
 	sendShake() {
-		Terminal.emit('echo', 'Sending SHAKE...');
+		this.emit('echo', 'Sending SHAKE...');
 
-		let msg = new Message({
-			"type": "SHAKE",
-			"publicCert": this.rsa.local.cert.toPublicPem('utf8')
+		const msg = new Message({
+			type: 'SHAKE',
+			publicCert: this.rsa.local.cert.toPublicPem('utf8')
 		}, this);
 
 		this.client.send(msg.toString());
 
-		this.flags.SHAKE++;
+		this.flags.SHAKE += 1;
 	}
 
-	handleHelo(type,msg) {
-		Terminal.emit('echo', 'Receiving HELO...');
+	handleHelo(type, msg) {
+		this.emit('echo', 'Receiving HELO...');
 
-		if(this.flags.SHAKE!==3) {
-			Terminal.emit('echo', 'Handshake steps were out of order. Terminating session.');
-			return this.terminate();
+		if (this.flags.SHAKE !== 3) {
+			this.emit('echo', 'Handshake steps were out of order. Terminating session.');
+			this.terminate();
+			return;
 		}
 
-		if(this.flags.HELO===3
-		|| this.flags.HELO===2) return;
+		if (this.flags.HELO === 3 || this.flags.HELO === 2) return;
 
 		this.rsa.remote.username = msg.username;
-		this.flags.HELO+=2;
+		this.flags.HELO += 2;
 
-		if(this.flags.HELO===2) {
+		if (this.flags.HELO === 2) {
 			this.sendHelo();
-		} else if(this.flags.HELO===3) {
+		} else if (this.flags.HELO === 3) {
 			this.ready();
 		}
 	}
 
 	sendHelo() {
-		Terminal.emit('echo', 'Sending HELO...');
+		const { SecureChat: { username } } = this;
 
-		let msg = new Message({
-			"type": "HELO",
-			"username": SecureChat.username
+		this.emit('echo', 'Sending HELO...');
+
+		const msg = new Message({
+			type: 'HELO',
+			username
 		}, this);
 
 		this.client.send(msg.toString());
 
-		this.flags.HELO++;
+		this.flags.HELO += 1;
 
-		if(this.flags.HELO===3 && this.flags.SHAKE===3) this.ready();
+		if (this.flags.HELO === 3 && this.flags.SHAKE === 3) this.ready();
 	}
 
 	handleMessage(type, contents) {
-		if(this.flags.SHAKE!==3
-		|| this.flags.HELO!==3) {
-			Terminal.emit('echo', 'Terminating Connection (Received message before handshake completed)');
-			return this.terminate();
+		const { SecureChat } = this;
+		if (this.flags.SHAKE !== 3 || this.flags.HELO !== 3) {
+			this.emit('echo', 'Terminating Connection (Received message before handshake completed)');
+			this.terminate();
+			return;
 		}
 
-		var parsed;
+		let parsed;
 		try {
 			parsed = JSON.parse(contents);
-		} catch(e) {}
+		} catch (e) {
+			parsed = contents;
+		}
 
-		contents.type = type;
-		contents.username = contents.username || this.rsa.remote.username;
+		parsed.type = type;
+		parsed.username = parsed.username || this.rsa.remote.username;
 
-		SecureChat.handleMessage(contents);
+		SecureChat.handleMessage(parsed);
 	}
 
 	close() {
-		if(this.client && this.client.close) this.client.close();
+		if (this.client && this.client.close) this.client.close();
 	}
 
 	terminate() {
-		if(this.client && this.client.terminate) this.client.terminate();
+		if (this.client && this.client.terminate) this.client.terminate();
 		else this.close();
 	}
 }

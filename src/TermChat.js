@@ -1,17 +1,18 @@
-import os from 'os';
+/* eslint-disable no-console, no-param-reassign */
 import fs from 'fs';
 import vm from 'vm';
 import path from 'path';
-import util from 'util';
 import http from 'http';
 import https from 'https';
 import readline from 'readline';
 import EventEmitter from 'events';
 
+const urlRegex = /^[a-zA-Z0-9]+:\/\/[a-zA-Z0-9]+\.[-a-zA-Z0-9]+\.?[a-zA-Z0-9]+$|^[a-zA-Z0-9]+\.[-a-zA-Z0-9]+\.[a-zA-Z0-9]+$/;
+
 export default class TermChat extends EventEmitter {
 	constructor(config) {
 		super();
-		if(config) {
+		if (config) {
 			this.setConfig(config);
 			this.init();
 		}
@@ -19,10 +20,10 @@ export default class TermChat extends EventEmitter {
 
 	setConfig(config) {
 		this.config = Object.assign({
-			"promptDelim": "$ ",
-			"username": process.env['USER'],
-			"motd": "Welcome to Terminal Chat",
-			"verbose": false
+			promptDelim: '$ ',
+			username: process.env.USER,
+			motd: 'Welcome to Terminal Chat',
+			verbose: false
 		}, config);
 	}
 
@@ -36,8 +37,8 @@ export default class TermChat extends EventEmitter {
 
 		this.initPrompt();
 
-		this.addListener('echo', this.echo.bind(this) );
-		this.addListener('command', this.handleCommand.bind(this) );
+		this.addListener('echo', this.echo.bind(this));
+		this.addListener('command', this.handleCommand.bind(this));
 		this.addListener('exec', (cmd) => {
 			this.emit('command', cmd.split(/\s+/), cmd);
 		});
@@ -46,15 +47,15 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initVerbose() {
-		if(!this.config.verbose) {
+		if (!this.config.verbose) {
 			this.emit = EventEmitter.prototype.emit.bind(this);
 			return;
 		}
 
-		this.emit = (function() {
-			this.echo(`[${arguments[0]}] ${arguments[1]}`, true);
-			return EventEmitter.prototype.emit.apply(this,arguments);
-		}).bind(this);
+		this.emit = (...args) => {
+			this.echo(`[${args[0]}] ${args[1]}`, true);
+			return EventEmitter.prototype.emit.apply(this, args);
+		};
 	}
 
 	initMotd() {
@@ -62,29 +63,32 @@ export default class TermChat extends EventEmitter {
 	}
 
 	initCommands() {
-		var dir = './commands/';
-		fs.readdir( path.join(__dirname, dir), (err, files) => {
-			if(err) return;
-			files.forEach( (v) => {
-				var cmd = v.split('.')[0].toLowerCase();
+		const dir = './commands/';
+		fs.readdir(path.join(__dirname, dir), (err, files) => {
+			if (err) return;
+			files.forEach((v) => {
+				const cmd = v.split('.')[0].toLowerCase();
 
-				var factory = require(path.join(__dirname, dir, v)).default;
-				var handler = factory(Terminal);
+				const factory = require(path.join(__dirname, dir, v)).default;
+				const handler = factory(this);
 
-				handler.package = "CORE";
+				handler.package = 'CORE';
 
-				Terminal.registerCommand(cmd, handler);
+				this.registerCommand(cmd, handler);
 			});
 		});
 	}
 
 	initPackages() {
-		fs.readdir( path.join(__dirname, './packages/'), (err, files) => {
-			if(err) return;
-			files.forEach( (v) => {
-				this.localImport( path.join(__dirname, './packages/', v) );
-			});
-		})
+		const pkgDir = path.join(__dirname, './packages/');
+		fs.readdir(pkgDir, (err, files) => {
+			if (err) return;
+			files
+				.map(p => path.join(pkgDir, p))
+				.map(p => path.resolve(p))
+				.filter(p => !fs.statSync(p).isDirectory())
+				.forEach(p => this.localImport(p));
+		});
 	}
 
 	initPrompt() {
@@ -93,15 +97,15 @@ export default class TermChat extends EventEmitter {
 			output: process.stdout
 		});
 
-		this.curInput = "";
-		process.stdin.setEncoding("utf8");
+		this.curInput = '';
+		process.stdin.setEncoding('utf8');
 		process.stdin.on('data', (data) => {
 			this.curInput += data.toString('utf8');
 		});
 
 		this.readline.on('line', (msg) => {
-			if( msg.split(/\s+/)[0].substr(0,1) === "/" ) {
-				this.curInput = "";
+			if (msg.split(/\s+/)[0].substr(0, 1) === '/') {
+				this.curInput = '';
 				this.emit('command', msg.split(/\s+/), msg);
 				this.once('commandExit', () => {
 					this.prompt();
@@ -115,82 +119,81 @@ export default class TermChat extends EventEmitter {
 	}
 
 	prompt() {
-		this.curInput = "";
-		this.readline.setPrompt(this.config.username+this.config.promptDelim);
+		this.curInput = '';
+		this.readline.setPrompt(this.config.username + this.config.promptDelim);
 		this.readline.prompt(true);
 	}
 
 	registerCommand(cmd, handler, man) {
-		if(cmd.length && typeof cmd === "object") {
-			for(var i=0;i<cmd.length;i++) {
+		if (cmd.length && typeof cmd === 'object') {
+			for (let i = 0; i < cmd.length; i += 1) {
 				this.registerCommand(cmd[i], handler, man);
 			}
 			return;
 		}
 
-		if(typeof handler !== "function") {
-			if(!handler.name) handler.name = cmd;
-			this.Commands[cmd] = handler;
+		if (typeof handler !== 'function' && typeof handler.cmd !== 'function') {
+			try {
+				throw new TypeError(`Error registering command; Incomplete manifest: ${JSON.stringify(handler, null, '\t')}`);
+			} catch (e) {
+				this.handleError(e);
+			}
+		}
+
+		if (typeof handler === 'function') {
+			this.Commands[cmd] = {
+				name: cmd,
+				package: '',
+				cmd: handler,
+				man
+			};
 			return;
 		}
 
-		this.Commands[cmd] = {
-			name: cmd,
-			package: "",
-			cmd: handler,
-			man: man
-		};
+		handler.name = handler.name || cmd;
+		this.Commands[cmd] = handler;
 	}
 
 	handleCommand(parts, raw) {
-		let cmd = parts[0].substr(1);
-		switch(cmd) {
-			case "ls":
+		const cmd = parts[0].substr(1);
+		switch (cmd) {
+			case 'ls':
 				this.emit('echo', [
-					"man", "ls", "verbose", "exit", "motd", "import", "error"
-				].concat(Object.keys(this.Commands)).join("    "));
+					'man', 'ls', 'verbose', 'exit', 'motd', 'import', 'error'
+				].concat(Object.keys(this.Commands)).join('    '));
 				break;
-			case "verbose":
+			case 'verbose':
 				this.emit('echo', 'Toggling verbose (e.g., "echo" all emits)');
 				this.emit('echo', `this.config.verbose = ${!this.config.verbose}`);
 				this.config.verbose = !this.config.verbose;
 				this.initVerbose();
 				break;
-			case "exit":
-				console.log("Goodbye");
-				console.log(" ");
+			case 'exit':
+				this.emit('echo', 'Goodbye');
+				this.emit('echo', ' ');
 				process.exit(0);
 				break;
-			case "motd":
+			case 'motd':
 				this.emit('echo', this.config.motd);
 				break;
-			case "import":
-				var importLoc = path.join(__dirname, '../', parts[1]);
-
-				var fileExists = false;
-				try {
-					fileExists = fs.statSync(importLoc).isFile();
-				} catch(e) {}
-
-				if(fileExists) {
-					this.localImport(importLoc);
-				} else {
-					this.remoteImport(parts[1]);
-				}
+			case 'import':
+				this.import(parts[1]);
 				return;
-				break;
-			case "error":
-				if(this.__lastError) {
+			case 'error':
+				if (this.__lastError) {
 					this.emit('echo', this.__lastError);
 					this.emit('echo', this.__lastError.message);
 					this.emit('echo', this.__lastError.stack);
 				}
 				break;
 			default:
-				if(this.Commands.hasOwnProperty(cmd)) {
+				if (Object.getOwnPropertyNames(
+					this.Commands
+				).indexOf(cmd) > -1) {
+					const { [cmd]: cmdManifest } = this.Commands;
 					try {
-						this.Commands[cmd].cmd(parts, raw, this);
-					} catch(e) {
+						cmdManifest.cmd(parts, raw, this);
+					} catch (e) {
 						this.handleError(e);
 					}
 					return;
@@ -203,13 +206,13 @@ export default class TermChat extends EventEmitter {
 	}
 
 	handleError(e) {
-		this.emit('echo', `Error: (Type: /error to view stack)`);
+		this.emit('echo', 'Error: (Type: /error to view stack)');
 		this.__lastError = e;
 		this.emit('commandExit');
 	}
 
 	echo(msg, forceEcho) {
-		if(this.config.verbose && !forceEcho) return;
+		if (this.config.verbose && !forceEcho) return;
 
 		this.readline.pause();
 		process.stdout.clearLine();
@@ -219,35 +222,72 @@ export default class TermChat extends EventEmitter {
 	}
 
 	redrawPrompt(newLine, curInput) {
-		if(newLine) console.log(" ");
-		if(!curInput) {
-			if(this.curInput) curInput = this.curInput;
-			else curInput = " ";
-		}
+		if (newLine) console.log(' ');
+		const input = curInput || this.curInput || ' ';
 
-		let promptText = this.config.username + this.config.promptDelim;
+		const promptText = this.config.username + this.config.promptDelim;
+
 		this.readline.setPrompt(promptText);
-		let text = promptText + curInput;
+
+		const text = `${promptText}${input}`;
+
 		process.stdout.clearLine();
 		process.stdout.cursorTo(0);
 		process.stdout.write(text);
-		process.stdout.cursorTo( (text.length) - 1 );
+		process.stdout.cursorTo((text.length) - 1);
+
 		this.readline.resume();
 	}
 
-	localImport(importLoc) {
+	use(Middleware) {
+		const { default: Module = Middleware } = Middleware;
 		try {
-			require(importLoc);
-		} catch(e) {
+			// console.log(JSON.stringify({
+			// 	Middleware,
+			// 	construct: typeof Middleware,
+			// 	name: Middleware.constructor.name,
+			// 	typeof: typeof Middleware.constructor
+			// }, null, '\t'));
+
+			if (Module && Module.constructor && typeof Module.constructor === 'function') {
+				return new Module(this);
+			}
+			return Module(this);
+		} catch (e) {
 			this.handleError(e);
 		} finally {
-			Terminal.emit('commandExit');
+			this.emit('commandExit');
+		}
+		return null;
+	}
+
+	import(addr) {
+		if (urlRegex.test(addr)) {
+			this.remoteImport(addr);
+			return;
+		}
+
+		const importLoc = path.join(__dirname, '../', addr);
+
+		let fileExists = false;
+		try {
+			fileExists = fs.statSync(importLoc).isFile();
+		} catch (e) { /* fail silently */ }
+
+		if (fileExists) {
+			this.localImport(importLoc);
+		} else {
+			this.remoteImport(addr);
 		}
 	}
 
+	localImport(importLoc) {
+		this.use(require(importLoc));
+	}
+
 	remoteImport(importLoc) {
-		var getter;
-		if(importLoc.indexOf('https:') > -1) {
+		let getter;
+		if (importLoc.indexOf('https:') > -1) {
 			getter = https;
 		} else {
 			getter = http;
@@ -256,35 +296,50 @@ export default class TermChat extends EventEmitter {
 		try {
 			this.emit('echo', `Importing ${importLoc}`);
 			getter.get(importLoc, (res) => {
-				var progress = '/';
-				var data = '';
+				let progress = '/';
+				let data = '';
 
 				res.setEncoding('utf8');
 
 				res.on('data', (chunk) => {
-					data+=chunk;
+					/* eslint-disable no-nested-ternary */
+					data += chunk;
 					process.stdout.cursorTo(0);
 					process.stdout.clearLine();
-					process.stdout.write("Importing [" + (progress=(
-						progress === "/" ? "|" :
-						progress === "|" ? "\\" :
-						progress === "\\" ? "-" : "/"
-					)) + "]");
+					process.stdout.write(`Importing [${progress = (
+						progress === '/' ? '|' :
+							progress === '|' ? '\\' :
+								progress === '\\' ? '-' : '/'
+					)}]`);
+					/* eslint-enable no-nested-ternary */
 				});
 
 				res.on('end', () => {
-					this.emit('echo', `Initializing and Contextualizing...`);
+					this.emit('echo', 'Initializing and Contextualizing...');
 
 					try {
-						eval(data);
-					} catch(e) {
+						this.emit('echo', 'Reading resource package file');
+
+						const opts = {
+							filename: path.join(
+								path.resolve(__dirname), Buffer.from(`${importLoc}`, 'utf8').toString('base64')
+							),
+							displayErrors: true
+						};
+
+						this.emit('echo', 'Executed script in new context');
+
+						const Module = vm.runInThisContext(data, opts);
+
+						this.use(Module);
+					} catch (e) {
 						this.handleError(e);
 					}
 
 					this.emit('commandExit');
 				});
 			});
-		} catch(e) {
+		} catch (e) {
 			this.handleError(e);
 		}
 	}
